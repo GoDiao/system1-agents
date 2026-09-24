@@ -17,6 +17,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 - `docs/benchmarks.md`: the Google Flights driver comparison rerun on 2026-09-23 from Poland, every arm three times on
   both decision backends, next to the baseline rows in one table; the 24 S1A records, as one archive, and the chart
   under `docs/results/flights/rerun-2026-09-23/`.
+- `laya_state` (`s1a/decision_models/laya.py`): folds a browser-front state to fit Laya's 512 to 1024 token
+  window before every call — `page.text` dropped, one short line per element row instead of a JSON object, the
+  last three actions instead of ten — roughly a tenfold reduction in the JSON-shaped state on the pages measured.
+  On by default; `LAYA_COMPACT_BROWSER_STATE=0` turns it off. `docs/decision-models.md`.
 
 ### Changed
 
