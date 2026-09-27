@@ -146,6 +146,13 @@ interface fits: [docs/architecture.md](docs/architecture.md), [docs/decision-mod
 - [docs/why.md](docs/why.md): the problem, the philosophy, the precedents.
 - [docs/roadmap.md](docs/roadmap.md) and [CHANGELOG.md](CHANGELOG.md).
 
+## Stay Tuned with Us
+
+If you find system1-agents useful, [give us a star on GitHub](https://github.com/ThinkFlowLab/system1-agents)
+to support the project and help others discover it!
+
+[![GitHub repository screenshot demonstrating a click on Star, turning the star yellow and showing Starred](docs/assets/stay-tuned.gif)](https://github.com/ThinkFlowLab/system1-agents)
+
 ## Contributing and license
 
 [CONTRIBUTING.md](CONTRIBUTING.md) has the dev install, the checks and the hooks. Apache-2.0.
