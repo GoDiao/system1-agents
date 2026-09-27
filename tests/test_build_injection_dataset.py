@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -400,7 +401,8 @@ RECORDS = [  # (label, band, note, text): every recall source, a U positive, mar
 
 
 def _job(entries: list[tuple[bool, str, str, str]], set_path: str | None = None, **summary: object) -> Path:
-    """A job folder as ``rails.evaluate`` writes it, and the labelled set it read at ``set.jsonl`` beside it."""
+    """A job folder as ``rails.evaluate`` writes it, and the labelled set it read at ``set.jsonl`` beside it; a summary
+    field given as ``...`` is left out."""
     job = Path(tempfile.mkdtemp(prefix="s1a-report-"))
     rows = [{"label": label, "p": 0.5, "band": band, "ms": 7, "note": note} for label, band, note, _ in entries]
     (job / "verdicts.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
@@ -408,10 +410,19 @@ def _job(entries: list[tuple[bool, str, str, str]], set_path: str | None = None,
         {"state": {"tool": "t", "text": text}, "label": label, "note": note} for label, _, note, text in entries
     ]
     (job / "set.jsonl").write_text("".join(json.dumps(row) + "\n" for row in labelled), encoding="utf-8")
-    defaults = {"records": len(rows), "precision": None, "median_ms": 464, "cost_usd": 0.000063}
-    summary = {**defaults, "labelled_set": set_path or str(job / "set.jsonl"), **summary}
-    (job / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+    digest = hashlib.sha256((job / "set.jsonl").read_bytes()).hexdigest()
+    defaults = {"model": "jev", "records": len(rows), "precision": None, "median_ms": 464, "cost_usd": 0.000063}
+    summary = {**defaults, "labelled_set": set_path or str(job / "set.jsonl"), "labelled_set_sha256": digest, **summary}
+    (job / "summary.json").write_text(json.dumps({k: v for k, v in summary.items() if v is not ...}), encoding="utf-8")
     return job
+
+
+def _rewrite_set(job: Path, lines: list[str]) -> None:
+    """Replace the labelled set and record its new digest, as if the run had read this file."""
+    (job / "set.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    summary = json.loads((job / "summary.json").read_text(encoding="utf-8"))
+    summary["labelled_set_sha256"] = hashlib.sha256((job / "set.jsonl").read_bytes()).hexdigest()
+    (job / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
 
 
 def _allowed(records: list[tuple[bool, str, str, str]]) -> list[tuple[bool, str, str, str]]:
@@ -445,11 +456,11 @@ class TestReport(TestCase):
         low = (build.wilson(1, 3)[0] + build.wilson(1, 2)[0]) / 2
         high = (build.wilson(1, 3)[1] + build.wilson(1, 2)[1]) / 2
         self.assertIn(f"| please | {_wilson(1, 3)} | {_wilson(1, 2)} | 0.417 [{low:.3f}, {high:.3f}] |", table)
-        self.assertIn(f"| Jev | {_wilson(2, 3)} | {_wilson(1, 2)} |", table)
+        self.assertIn(f"| jev | {_wilson(2, 3)} | {_wilson(1, 2)} |", table)
         self.assertIn("- Threshold 1, hard subset at least 100+ / 30−: 3+ / 2−, not met.", table)
         self.assertIn("- Threshold 2, please at most 0.65: 0.417, met.", table)
         self.assertIn(
-            "- Threshold 4, Jev at least 0.15 above the best fixed rule (always_true, 0.500): 0.583 − 0.500 = 0.083, not met.",
+            "- Threshold 4, jev at least 0.15 above the best fixed rule (always_true, 0.500): 0.583 − 0.500 = 0.083, not met.",
             table,
         )
 
@@ -494,12 +505,38 @@ class TestReport(TestCase):
     def test_report_labelled_set_mismatch_fails(self) -> None:
         job = _job(RECORDS, precision=0.8)
         rows = (job / "set.jsonl").read_text(encoding="utf-8").splitlines()
-        (job / "set.jsonl").write_text("\n".join([rows[1], rows[0], *rows[2:]]) + "\n", encoding="utf-8")
+        _rewrite_set(job, [rows[1], rows[0], *rows[2:]])
         with self.assertRaises(build.BuildError):
             build.report(job)
-        (job / "set.jsonl").write_text("\n".join(rows[:-1]) + "\n", encoding="utf-8")
+        _rewrite_set(job, rows[:-1])
         with self.assertRaises(build.BuildError):
             build.report(job)
+
+    def test_report_digest_mismatch_fails(self) -> None:
+        job = _job(RECORDS, precision=0.8)
+        rows = [json.loads(line) for line in (job / "set.jsonl").read_text(encoding="utf-8").splitlines()]
+        for row in rows:
+            row["state"] = {"tool": "t", "text": "please " + row["state"]["text"]}  # note and label kept
+        (job / "set.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+        with self.assertRaisesRegex(build.BuildError, "the set changed after the run"):
+            build.report(job)
+
+    def test_report_missing_digest_or_model_fails(self) -> None:
+        for field in ("labelled_set_sha256", "model"):
+            with self.assertRaisesRegex(build.BuildError, "predates", msg=field):
+                build.report(_job(RECORDS, precision=0.8, **{field: ...}))
+
+    def test_report_renders_the_recorded_model(self) -> None:
+        table = build.report(_job(RECORDS, precision=0.8, model="laya"))
+        self.assertIn("| metric | laya | always true |", table)
+        self.assertIn(f"| laya | {_wilson(2, 3)} | {_wilson(1, 2)} |", table)
+        self.assertIn("- Threshold 4, laya at least 0.15", table)
+        self.assertNotIn("Jev", table)
+
+    def test_report_rejects_a_positive_with_a_negative_grade(self) -> None:
+        records = [*RECORDS, (True, "act", "agentdojo R2 v1.2.2/banking/user_task_2/call0", "pay the rent")]
+        with self.assertRaisesRegex(build.BuildError, "do not fit a positive"):
+            build.report(_job(records, precision=0.833))
 
     def test_report_prints_on_a_cp1252_stdout(self) -> None:
         done = subprocess.run(

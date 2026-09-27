@@ -796,16 +796,16 @@ def build(out: Path) -> None:
     print(f"\n{len(records)} records, {sum(r.label for r in records)} positive: {out}")
 
 
-def parse_note(note: object) -> tuple[str, str, str]:
-    """``<source> <grade> <locator>``, checked against ``GRADES``; the base source is returned without ``-u``."""
+def parse_note(note: object, label: bool) -> tuple[str, str, str]:
+    """``<source> <grade> <locator>``, the grade checked against ``GRADES`` for this label; the base source is returned
+    without ``-u``."""
     parts = str(note).split(" ", 2)
     if len(parts) != 3:
         raise BuildError(f"note {note!r} is not <source> <grade> <locator>")
     source, grade, locator = parts
     base = source.removesuffix("-u")
-    known = any(pool_source == base and grade in grades for (pool_source, _), grades in GRADES.items())
-    if not known or source.endswith("-u") != (grade == "U"):
-        raise BuildError(f"note {note!r}: source and grade do not fit")
+    if grade not in GRADES.get((base, bool(label)), set()) or source.endswith("-u") != (grade == "U"):
+        raise BuildError(f"note {note!r}: source and grade do not fit a {'positive' if label else 'negative'}")
     return base, grade, locator
 
 
@@ -818,6 +818,12 @@ def report(job_dir: Path, labelled_set: Path | None = None) -> str:
     path = path if path.is_absolute() else ROOT / path
     if not path.is_file():
         raise BuildError(f"labelled set {path} not found; pass --labelled-set")
+    recorded, model = summary.get("labelled_set_sha256"), summary.get("model")
+    if recorded is None or model is None:
+        raise BuildError(f"{job_dir}: summary.json records no labelled_set_sha256 or model; the run predates them")
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    if digest != recorded:
+        raise BuildError(f"{path} has sha256 {digest}, the run read {recorded}; the set changed after the run")
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     if not len(verdicts) == len(rows) == summary["records"]:
         raise BuildError(
@@ -827,7 +833,7 @@ def report(job_dir: Path, labelled_set: Path | None = None) -> str:
     for verdict, row in zip(verdicts, rows):
         if verdict.get("note") != row.get("note") or verdict["label"] != row["label"]:
             raise BuildError(f"verdict {verdict.get('note')!r} does not match record {row.get('note')!r} of {path}")
-        base, grade, locator = parse_note(row["note"])
+        base, grade, locator = parse_note(row["note"], row["label"])
         records.append(Candidate(base, locator, row["state"]["tool"], row["state"]["text"], row["label"], grade=grade))
         acted.append(verdict["band"] == "act")
 
@@ -849,10 +855,10 @@ def report(job_dir: Path, labelled_set: Path | None = None) -> str:
     if not positives or not negatives:
         raise BuildError(f"hard subset {len(positives)} positive, {len(negatives)} negative")
     flagged = {id(r) for r, a in main if a}
-    jev_ba = balanced_accuracy([id(r) in flagged for r in positives], [id(r) in flagged for r in negatives])
+    model_ba = balanced_accuracy([id(r) in flagged for r in positives], [id(r) in flagged for r in negatives])
     main_precision = precision(main)
     lines = [
-        "| metric | Jev | always true |",
+        f"| metric | {model} | always true |",
         "|---|---|---|",
         f"| precision, without U ({len(main)} records) | {'—' if main_precision is None else f'{main_precision:.3f}'} "
         f"| {sum(r.label for r, _ in main) / len(main):.3f} |",
@@ -863,7 +869,7 @@ def report(job_dir: Path, labelled_set: Path | None = None) -> str:
         )
     u_recall = f"{sum(context) / len(context):.3f}" if context else "—"
     lines.append(f"| recall, context needed (U) ({len(context)}) | {u_recall} | 1.000 |")
-    lines.append(f"| balanced accuracy, hard subset ({len(positives)}+ / {len(negatives)}−) | {jev_ba:.3f} | 0.500 |")
+    lines.append(f"| balanced accuracy, hard subset ({len(positives)}+ / {len(negatives)}−) | {model_ba:.3f} | 0.500 |")
     if main_precision is None:
         lines += ["", "No record was flagged."]
     lines += [
@@ -886,7 +892,7 @@ def report(job_dir: Path, labelled_set: Path | None = None) -> str:
         name: row(name, [rule(r.text) for r in positives], [rule(r.text) for r in negatives])
         for name, rule in BASELINES.items()
     }
-    row("Jev", [id(r) in flagged for r in positives], [id(r) in flagged for r in negatives])
+    row(model, [id(r) in flagged for r in positives], [id(r) in flagged for r in negatives])
 
     def met(ok: bool) -> str:
         return "met" if ok else "not met"
@@ -903,10 +909,10 @@ def report(job_dir: Path, labelled_set: Path | None = None) -> str:
     for name, score in scores.items():
         lines.append(f"- Threshold 2, {name} at most {MAX_RULE_BA}: {score:.3f}, {met(score <= MAX_RULE_BA)}.")
     best = max(scores, key=lambda name: scores[name])
-    lead = jev_ba - scores[best]
+    lead = model_ba - scores[best]
     lines.append(
-        f"- Threshold 4, Jev at least {MIN_JEV_LEAD} above the best fixed rule ({best}, {scores[best]:.3f}): "
-        f"{jev_ba:.3f} − {scores[best]:.3f} = {lead:.3f}, {met(lead >= MIN_JEV_LEAD)}."
+        f"- Threshold 4, {model} at least {MIN_JEV_LEAD} above the best fixed rule ({best}, {scores[best]:.3f}): "
+        f"{model_ba:.3f} − {scores[best]:.3f} = {lead:.3f}, {met(lead >= MIN_JEV_LEAD)}."
     )
     lines += ["", f"Median {summary['median_ms']} ms per decision, ${summary['cost_usd']:.6f} for the run."]
     return "\n".join(lines)
