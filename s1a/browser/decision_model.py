@@ -471,6 +471,10 @@ class BrowserDecisionModel(Model):
         event["stage"] = "planner"
         try:
             plan = await budget.call(self._draft_plan(run, fresh))
+            if not (plan or "").strip():
+                # A blank answer is a planner failure, not a plan: the turn would otherwise get no guidance and the
+                # event would read as planned. ``draft_plan`` strips, so None/whitespace arrives here as "".
+                raise ValueError("planner returned an empty plan")
         except asyncio.CancelledError:
             self._stop_recovery(run, event, stage="planner", termination="cancelled", error="recovery cancelled")
             raise

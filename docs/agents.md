@@ -30,9 +30,11 @@ with `list_agents`, `run_agent` and `decide`. Flags, exit codes and the job-fold
 models behind them: [architecture.md](architecture.md#models).
 
 With bounded recovery enabled, a failed refresh or plan records its reason and a suggested next action for the
-operator. A task the policy still answers `BLOCKED` after one or more replans is a failure too, even when a partial
-answer was fetched: the answer is context only and the run carries the block reason and a next action, without being
-reported as a failed or exhausted recovery. Failed and cancelled chat calls still count toward the run's call total.
+operator; a plan answer that normalizes to empty or whitespace counts as a failed plan, not a plan. The empty reply
+still consumes the one attempt and its active time, and the fresh observation is kept. A task the policy still
+answers `BLOCKED` after one or more replans is a failure too, even when a partial answer was fetched: the answer is
+context only and the run carries the block reason and a next action, without being reported as a failed or exhausted
+recovery. Failed and cancelled chat calls still count toward the run's call total.
 If a call's token usage is unknown, the reported cost stays unknown rather than becoming zero.
 
 ## Agent-specific flags

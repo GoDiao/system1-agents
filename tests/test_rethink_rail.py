@@ -47,6 +47,22 @@ class FailingPlanner:
         raise build_error(StatusCode.MODEL_CALL_FAILED, error_msg="chat endpoint returned HTTP 401")
 
 
+class BlankPlanner:
+    """A planner whose reply normalizes to nothing: the bounded branch must read it as a failure, not a plan.
+
+    ``SimpleNamespace`` stands in for the reply so a ``None`` content reaches ``draft_plan`` unnormalized by
+    ``AssistantMessage``'s own validation; ``draft_plan`` only reads ``reply.content``.
+    """
+
+    def __init__(self, content: Any = "") -> None:
+        self.content = content
+        self.calls = 0
+
+    async def invoke(self, messages: Any, **kwargs: Any) -> Any:
+        self.calls += 1
+        return SimpleNamespace(content=self.content)
+
+
 class SlowPlanner:
     def __init__(self) -> None:
         self.calls = 0
@@ -384,6 +400,28 @@ class TestBoundedRethink(IsolatedAsyncioTestCase):
         self.assertIn("recovery attempts spent", give_up[-1]["error"])
         self.assertIn("start a new task", give_up[-1]["next_action"])
         self.assertEqual(len(planner.calls), 1, "the escalation is a message, not another planner call")
+
+    async def test_an_empty_or_whitespace_plan_is_a_planner_failure(self) -> None:
+        for content in ("", "   ", "\n\t ", None):
+            with self.subTest(content=content):
+                state, refresh = EvalState(), FakeRefresh()
+                planner = BlankPlanner(content)
+                guard = bounded_rail(state, refresh, planner=planner)
+                for key in ("LEFT", "RIGHT"):
+                    await guard.after_tool_call(act(key, 0))
+
+                event = state.rethinks[-1]
+                self.assertTrue(state.error.startswith("rethink planner failed: "), state.error)
+                self.assertIn("empty plan", state.error)
+                self.assertEqual((event["termination"], event["phase"]), ("error", "planner"))
+                self.assertEqual(event["attempt"], 1, "the charged attempt is kept")
+                self.assertGreaterEqual(event["spent_s"], 0.0, "the consumed active time is kept")
+                self.assertIsInstance(event["fresh_obs"], dict, "the successful refresh is kept")
+                self.assertIn("start a new task", event["next_action"])
+                self.assertEqual(planner.calls, 1, "one plan attempt, never a silent retry")
+                self.assertEqual(refresh.calls, 1, "a failed plan stops the episode: no further refresh")
+                self.assertEqual(state.plan, "")
+                self.assertFalse(state.give_up, "a failed plan is not a spent budget")
 
     async def test_a_refresh_timeout_is_recorded_and_stops_the_episode(self) -> None:
         state = EvalState()

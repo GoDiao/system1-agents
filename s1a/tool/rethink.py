@@ -286,6 +286,10 @@ class RethinkRail(DeepAgentRail):
                 return
             event["phase"] = "planner"
             plan = await budget.call(self._draft(recent, fresh))
+            if not (plan or "").strip():
+                # A blank answer is a planner failure, not a plan: the next turn would get no guidance and the event
+                # would read as planned. ``draft_plan`` strips, so None/whitespace arrives here as "".
+                raise ValueError("planner returned an empty plan")
         except asyncio.CancelledError:
             event["termination"] = "cancelled"
             event["next_action"] = recovery_next_action(

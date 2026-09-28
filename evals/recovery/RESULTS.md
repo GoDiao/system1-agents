@@ -50,6 +50,28 @@ The experiment also exposed a reporting bug: a nonempty partial answer could mak
 BLOCKED appear successful in the browser front. That terminal-reporting correction was made and
 regression-tested afterwards. The rows preserve the measured revision; no historical outcomes
 were rewritten. The independent oracle already treated those trials as failures.
+A later guard also rejects blank planner responses as planner failures. That guard was
+regression-tested separately; these historical trials were not rerun for it.
+
+## From a plan to a verified outcome
+
+The following selected trajectories explain the success and failure above. Both are repeat 0 of
+the exploratory on arm in the per-trial data; they are illustrations, not additional trials.
+A tick is a decision-model call, including a terminal DONE or BLOCKED decision.
+
+| Stage | Normal form (verified) | Locked form (not verified) |
+| --- | --- | --- |
+| Before recovery | Ticks 1–3 click Submit with an empty value. Tick 4 fills `hello world`; ticks 5–7 refocus/refill the same field without progress. | Ticks 1–2 click Value, tick 3 submits `original`, and ticks 4–6 press Enter on the locked field without progress. |
+| Refreshed state and plan | After tick 7, the fresh field already contains `hello world`. The planner suggests pressing Enter on Value. | After tick 6, the fresh field still contains `original` and Enable editing is offered. The planner suggests unlocking, filling `hello world`, then submitting. |
+| Next actual decisions | Tick 8 selects PRESS_ENTER on Value; tick 9 returns DONE. | Ticks 7–9 still select PRESS_ENTER on Value. A second refresh and plan again suggest Enable editing; tick 10 returns BLOCKED. |
+| Independent outcome | The server receives `hello world` after three empty submissions. | The server only receives `original`; Enable editing is never clicked. |
+| Measured work | 1 recovery, 2.660 s active recovery time, 97.097 s task time. | 2 recoveries, 5.732 s cumulative active recovery time, 149.847 s task time. |
+
+These traces separate three questions: did the planner produce a usable suggestion, did the
+decision model act on it, and did the environment verify completion? A successful planner
+response establishes only the first. The locked-form failure is a concrete case for studying
+plan adherence; it does not demonstrate that another routing or recovery policy would solve it.
+The runtime deliberately leaves execution with the ordinary decision and permission path.
 
 ## Reproduction
 

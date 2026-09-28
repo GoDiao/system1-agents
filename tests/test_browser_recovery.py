@@ -357,6 +357,34 @@ class TestBrowserRecoveryBudget(IsolatedAsyncioTestCase):
         self.assertEqual((recovery["termination"], recovery["stage"]), ("error", "planner"))
         self.assertIn("planner down", recovery["error"])
 
+    async def test_an_empty_or_whitespace_plan_is_a_planner_failure(self) -> None:
+        for plan in ("", "   ", "\n\t ", None):
+            with self.subTest(plan=plan):
+                fallback = _planner_fallback(plan=plan)
+                slot = _slot([_type() for _ in range(3)], runtime=_RecoveryProbeRuntime(), fallback=fallback)
+                for _ in range(3):
+                    self.assertEqual((await slot.invoke(_MESSAGES, tools=_TOOLS)).tool_calls[0].name, "browser_type")
+                terminal = await slot.invoke(_MESSAGES, tools=_TOOLS)
+                summary = json.loads(terminal.content)
+
+                recovery = summary["recovery"]
+                self.assertEqual((summary["status"], recovery["failed"]), ("BLOCKED", True))
+                self.assertEqual((recovery["termination"], recovery["stage"]), ("error", "planner"))
+                self.assertEqual(recovery["attempts"], 1, "the charged attempt is kept")
+                self.assertIn("empty plan", recovery["error"])
+                self.assertIn("start a new task", summary["next_action"])
+                event = slot.report()["recovery"]["events"][0]
+                self.assertEqual((event["termination"], event["stage"]), ("error", "planner"))
+                self.assertEqual(event["attempt"], 1)
+                self.assertGreaterEqual(event["spent_s"], 0.0, "the consumed active time is kept")
+                self.assertIsNotNone(event["fresh_obs"], "the successful refresh is kept")
+                self.assertEqual(len(_replan_asks(fallback)), 1, "one plan attempt, never a silent retry")
+                self.assertFalse(any("final page" in asked[0]["content"] for asked in fallback.asked))
+                decisions = len(_wire(slot).bodies)
+                again = await slot.invoke(_MESSAGES, tools=_TOOLS)
+                self.assertEqual(again.content, terminal.content)
+                self.assertEqual(len(_wire(slot).bodies), decisions, "a stopped task starts no new decision")
+
     async def test_a_probe_error_stops_without_retrying(self) -> None:
         slot = _slot(
             [_type() for _ in range(3)],
