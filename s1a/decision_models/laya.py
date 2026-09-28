@@ -26,6 +26,7 @@ LAYA_DEFAULT_MAX_LEN = 512  # the window Laya assumes when a checkpoint config n
 LAYA_BROWSER_LABEL_CHARS = 40  # a row's label/value, kept over its full text (Jev's window is 32K; Laya's is not)
 LAYA_BROWSER_TITLE_CHARS = 80
 LAYA_BROWSER_HISTORY_KEPT = 3  # of the browser front's last ten actions; the freshest ones carry the signal
+LAYA_BROWSER_OPTION_CHARS = 28  # per target option: the label (and value) Laya reads, all options share one budget
 _FLAG_LETTERS = (
     ("checked", "C"),
     ("selected", "S"),
@@ -55,6 +56,35 @@ def without_weight_init() -> AbstractContextManager[Any]:
         except (ImportError, AttributeError):
             continue
     return nullcontext()
+
+
+def _laya_browser_option(option: Any) -> Any:
+    """A browser target option (``{"element": "[12] Where from?", "current_value": ...}``) as one short line."""
+    if not (isinstance(option, dict) and "element" in option):
+        return option
+    label = str(option["element"]).split("] ", 1)[-1][:LAYA_BROWSER_OPTION_CHARS]
+    if option.get("option"):
+        label += f" / {str(option['option'])[:LAYA_BROWSER_OPTION_CHARS]}"
+    value = str(option.get("current_value") or "")
+    return label + (f" = {value[:LAYA_BROWSER_OPTION_CHARS]}" if value else "")
+
+
+def laya_browser_question(asked: Json) -> Json:
+    """A browser-front choice question, shaped for Laya's one shared option budget (``head_max_len`` holds the
+    instruction and every option): the agent's long rules dropped, the instruction reduced to the goal and the
+    operation, each target option reduced to its element's label and value. Unfolded, a 23-element target head
+    left each option about six tokens, ``12: {"element": "[``, so Laya never saw an element's name.
+    Anything that is not a goal-bearing choice question passes through."""
+    instructions = asked.get("instructions")
+    if asked.get("type") != "choice" or not (isinstance(instructions, dict) and instructions.get("goal")):
+        return asked
+    operation = instructions.get("operation")
+    ask = f"Which element should {operation} act on?" if operation else "Which operation comes next?"
+    return {
+        "type": "choice",
+        "instructions": f"Task: {instructions['goal']} {ask}",
+        "criteria": {key: _laya_browser_option(option) for key, option in asked["criteria"].items()},
+    }
 
 
 def _laya_browser_row(row: Json) -> str:
@@ -119,7 +149,11 @@ class LayaModel(DecisionModel):
 
     async def _decide(self, observation: Observation, questions: dict[str, Question]) -> Reply:
         asked = {name: laya_question(question) for name, question in questions.items()}
-        state = laya_state(observation.state) if self._compact_browser_state else observation.state
+        state = observation.state
+        if self._compact_browser_state:
+            state = laya_state(state)
+            if state is not observation.state:  # a browser-shaped state: its questions are the browser heads
+                asked = {name: laya_browser_question(question) for name, question in asked.items()}
         started = time.perf_counter()
         try:
             payload = await asyncio.to_thread(self._agent.system_one, state, asked)

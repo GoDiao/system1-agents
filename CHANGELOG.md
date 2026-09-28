@@ -21,6 +21,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
   window before every call — `page.text` dropped, one short line per element row instead of a JSON object, the
   last three actions instead of ten — roughly a tenfold reduction in the JSON-shaped state on the pages measured.
   On by default; `LAYA_COMPACT_BROWSER_STATE=0` turns it off. `docs/decision-models.md`.
+- `laya_browser_question` (`s1a/decision_models/laya.py`): with a folded browser state, each browser question
+  reaches Laya as the goal and the operation (the agent's long rules dropped) and each target option as its
+  element's label and value. Laya fits a question's instruction and all its options into one `head_max_len`
+  budget, so a 23-element target head left each option about six tokens, `12: {"element": "[`, and no
+  element name. Browser runs want `LAYA_MAX_LEN=1536` and `LAYA_HEAD_MAX_LEN=1024`: a calendar page's target
+  head measures about 900 tokens.
 
 ### Changed
 

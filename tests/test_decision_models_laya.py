@@ -196,7 +196,55 @@ class TestLayaState(TestCase):
         self.assertGreater(len(raw) / len(compact), 8)
 
 
+_TARGET_QUESTION = ChoiceQuestion(
+    {
+        "12": {"element": "[12] Where from?", "current_value": "Zurich", "role": "combobox"},
+        "19": {"element": "[19] Search", "current_value": ""},
+    },
+    goal="find flights from Zurich to London",
+    operation="CLICK",
+    rules=("a long rule " * 50, "another long rule " * 50),
+)
+
+
+class TestLayaBrowserQuestion(TestCase):
+    """``laya_browser_question`` fits a browser head into Laya's one shared option budget."""
+
+    def test_a_target_option_becomes_its_label_and_value(self) -> None:
+        asked = laya_module.laya_browser_question(jev_question(_TARGET_QUESTION))
+        self.assertEqual(asked["criteria"], {"12": "Where from? = Zurich", "19": "Search"})
+
+    def test_the_rules_are_dropped_and_the_instruction_keeps_the_goal_and_the_operation(self) -> None:
+        asked = laya_module.laya_browser_question(jev_question(_TARGET_QUESTION))
+        self.assertIsInstance(asked["instructions"], str)
+        self.assertIn("find flights from Zurich to London", asked["instructions"])
+        self.assertIn("CLICK", asked["instructions"])
+        self.assertNotIn("long rule", asked["instructions"])
+
+    def test_the_operation_head_keeps_its_string_options(self) -> None:
+        operation = ChoiceQuestion({"CLICK": "Press a control", "DONE": "Finished"}, goal="g", rules="r")
+        asked = laya_module.laya_browser_question(jev_question(operation))
+        self.assertEqual(asked["criteria"], {"CLICK": "Press a control", "DONE": "Finished"})
+        self.assertEqual(asked["instructions"], "Task: g Which operation comes next?")
+
+    def test_a_question_without_a_goal_passes_through(self) -> None:
+        for asked in (jev_question(PICK), {"type": "noul", "instructions": "safe?"}):
+            self.assertEqual(laya_module.laya_browser_question(asked), asked)
+
+
 class TestLayaModelCompaction(IsolatedAsyncioTestCase):
+    async def test_browser_questions_reach_the_agent_folded_with_the_state(self) -> None:
+        agent = FakeLayaAgent()
+        await _model(agent).decide_many(Observation(_BROWSER_STATE), {"click_target": _TARGET_QUESTION})
+        ((_state, asked),) = agent.calls
+        self.assertEqual(asked["click_target"]["criteria"]["12"], "Where from? = Zurich")
+
+    async def test_questions_over_a_non_browser_state_are_not_folded(self) -> None:
+        agent = FakeLayaAgent()
+        await _model(agent).decide_many(Observation({"score": 1}), {"click_target": _TARGET_QUESTION})
+        ((_state, asked),) = agent.calls
+        self.assertEqual(asked["click_target"], jev_question(_TARGET_QUESTION))
+
     async def test_the_browser_state_reaching_the_agent_is_compacted_by_default(self) -> None:
         agent = FakeLayaAgent()
         question = ChoiceQuestion({"1": {"element": "[1] Search"}})

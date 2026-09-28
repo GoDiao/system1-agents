@@ -103,3 +103,21 @@ roughly a tenfold reduction in the JSON-shaped state's size before the tokenizer
 routinely filling a 512-token window and, on most pages, comfortably fitting it. It is on by default and skips
 anything that is not the browser front's shape; `LAYA_COMPACT_BROWSER_STATE=0` turns it off. `--model laya` on a
 page whose element table is still too wide for the window needs `LAYA_MAX_LEN` raised, same as before.
+
+The questions need the same care. Laya builds each question's row as `[CLS] instruction [SEP] options [SEP] state`
+and fits the instruction and every option into one `head_max_len` budget (192 by default): past it, every option
+is cut to an equal share and the instruction to what is left. The browser front's target options are JSON
+objects, so a 23-element click head left each option about six tokens, `12: {"element": "[`, and Laya never
+saw an element's name. With a folded state, `laya_browser_question` rewrites each browser question: the
+instruction becomes the goal and the operation (the agent's rules, 446 tokens and about 550 on a target head, are
+dropped), and each target option becomes its element's label and value, `Where from? = Zurich`. Measured on a
+Google Flights run with this shape: 157 to 206 tokens for the operation head, 73 to 101 for the TYPE_TEXT and
+PRESS_ENTER heads, 92 to 915 for the CLICK head (a calendar page offers 66 days), and 98 to 1,002 tokens of folded
+state. Browser runs therefore want `LAYA_MAX_LEN=1536` and `LAYA_HEAD_MAX_LEN=1024`.
+
+Both folds make the request fit; they do not make the stock checkpoint drive a web form. On 2026-09-28, with both
+on and those two settings, `s1a run flights --model laya` on CPU answered DONE at the first step (DONE 0.55, CLICK
+0.23; 12.4 s, 1,254 input tokens over four questions) where Jev needs twelve steps. Replayed offline over Jev's
+twelve recorded steps of the same task, the checkpoint picks Jev's answer on 4 of 23 questions (the operation head
+and the chosen operation's target head). Laya's model card names email triage, routing, guardrails and moderation
+as what its checkpoints are for; browser use would need a checkpoint fine-tuned on browser steps.
