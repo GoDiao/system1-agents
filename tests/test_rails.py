@@ -246,6 +246,15 @@ class TestEvaluate(IsolatedAsyncioTestCase):
             self.assertEqual((result["records"], result["accuracy"]), (1, 1.0))
         self.assertTrue(job_dir.name.endswith("__laya"))
 
+    async def test_a_priced_backend_counts_tokens_without_relying_on_its_name(self) -> None:
+        decision_model = _noul([0.9])
+        decision_model.bills_input_tokens = True
+        with tempfile.TemporaryDirectory() as tmp:
+            labelled = Path(tmp) / "set.jsonl"
+            labelled.write_text(json.dumps({"state": {"text": INJECTED}, "label": True}) + "\n", encoding="utf-8")
+            summary = await rails.evaluate(GUARD, labelled, decision_model=decision_model, results_dir=Path(tmp))
+        self.assertEqual((summary["jev_input_tokens"], summary["cost_usd"]), (300, 0.000013))
+
     def test_a_record_without_a_boolean_label_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             labelled = Path(tmp) / "bad.jsonl"
