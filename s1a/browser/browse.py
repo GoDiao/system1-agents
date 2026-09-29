@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
+import shutil
 import sys
 import time
 from datetime import datetime
@@ -14,11 +16,13 @@ from typing import Any
 from urllib.parse import urlparse
 from uuid import uuid4
 
+from openjiuwen.core.common.logging import logger
 from openjiuwen.core.foundation.llm import Model
 from openjiuwen.core.runner import Runner
 from openjiuwen.harness.deep_agent import DeepAgent
 from openjiuwen.harness.subagents import create_browser_agent
 from openjiuwen.harness.tools.browser_move.playwright_runtime.config import BrowserInstanceConfig
+from openjiuwen.harness.tools.browser_move.playwright_runtime.runtime import BrowserAgentRuntime, BrowserRuntimeRail
 from openjiuwen.harness.subagents.browser_agent import (
     _BROWSER_MODEL_TEMPERATURE_MARKER,
     DEFAULT_BROWSER_AGENT_TEMPERATURE,
@@ -42,6 +46,9 @@ BROWSER_MODEL_NAMES = (
     "llm",
 )  # a decision model (Jev or served Laya over HTTP, Laya or Cua-S1 in process) or the chat model
 RUNS_DIR = HOME / "runs" / "browser"
+FINAL_SCREENSHOT = "final.png"  # the page the task ended on, next to the run's records
+SCREENSHOT_TIMEOUT_S = 5.0  # @playwright/mcp's page.screenshot timeout; also caps a hung call before the cleanup
+SCREENSHOT_LINK = re.compile(r"\]\(([^()\r\n]+?\.png)\)")  # the screenshot report's link to its PNG, from the MCP cwd
 
 
 def browser_result(final: str) -> dict[str, Any] | None:
@@ -111,11 +118,47 @@ def usage_summary(calls: list[dict[str, Any]], *, jev_input_tokens: int, decisio
     }
 
 
-async def run_task(agent: DeepAgent, goal: str, *, timeout_s: float) -> Answer:
+def browser_runtime(agent: DeepAgent) -> BrowserAgentRuntime | None:
+    """The Playwright runtime ``create_browser_agent`` built for ``agent``, held by the rail it injects."""
+    rail = next((rail for rail in agent.configured_rails() if isinstance(rail, BrowserRuntimeRail)), None)
+    return rail._runtime if rail is not None else None  # ponytail: the runtime has no public handle on the agent
+
+
+async def save_final_screenshot(agent: DeepAgent, answer: Answer, logs_dir: Path) -> None:
+    """The page the task ended on as ``final.png`` in ``logs_dir``, for a judge that grades the end state.
+
+    Its path goes to ``answer["screenshot"]``. Nothing is taken when the runtime never observed a page, since the
+    screenshot tool would launch a browser for one. A failure leaves the path None and records the exception type in
+    ``answer["screenshot_error"]``; the exception text can quote the page and is dropped.
+    """
+    path = logs_dir / FINAL_SCREENSHOT
+    try:
+        runtime = browser_runtime(agent)
+        if runtime is None or not runtime.service.started or not runtime.export_page_state().get("url"):
+            return
+        # ponytail: _call_playwright_tool is private, as in s1a/tool/hands.py. @playwright/mcp writes the PNG under its
+        # output directory and links it in its report; the runtime's MCP client replaces the inline image with a note.
+        report = await asyncio.wait_for(
+            runtime._call_playwright_tool("browser_take_screenshot", {"type": "png", "fullPage": False}),
+            timeout=SCREENSHOT_TIMEOUT_S,
+        )
+        link = SCREENSHOT_LINK.search(str(report.get("result") if isinstance(report, dict) else report))
+        if link is None:
+            raise FileNotFoundError("the screenshot report links no PNG")
+        shutil.copyfile(Path(runtime.service.mcp_cfg.params.get("cwd") or Path.cwd()) / link.group(1), path)
+    except Exception as exc:  # noqa: BLE001 - a missing screenshot never changes the task's outcome
+        answer["screenshot_error"] = type(exc).__name__
+        logger.warning("[browse] final screenshot failed: %s", answer["screenshot_error"])
+        return
+    answer["screenshot"] = str(path)
+
+
+async def run_task(agent: DeepAgent, goal: str, *, timeout_s: float, logs_dir: Path) -> Answer:
     """One conversation through the started Runner; a timed-out task keeps the harness's partial output.
 
-    The browser (the agent's task resources) and the Runner session are released however the task ends, so the
-    next run in the same process starts its own browser with its own launch args and cookies.
+    However the task ends, the page it ended on is saved in ``logs_dir`` (``save_final_screenshot``), then the browser
+    (the agent's task resources) and the Runner session are released, so the next run in the same process starts its
+    own browser with its own launch args and cookies.
     """
     answer: Answer = {"ok": False, "final": "", "screenshot": None, "error": None, "elapsed_ms": 0}
     conversation_id = f"s1a-{datetime.now():%Y%m%d-%H%M%S}-{uuid4().hex[:6]}"
@@ -130,8 +173,11 @@ async def run_task(agent: DeepAgent, goal: str, *, timeout_s: float) -> Answer:
         return answer
     finally:
         answer["elapsed_ms"] = round((time.perf_counter() - started) * 1000)  # the task's wall clock
-        await agent.cleanup_task_resources()
-        await Runner.release(conversation_id)
+        try:
+            await save_final_screenshot(agent, answer, logs_dir)  # before the cleanup closes the page
+        finally:  # a cancellation during the screenshot still releases the browser and the session
+            await agent.cleanup_task_resources()
+            await Runner.release(conversation_id)
     answer["final"] = str(result.get("output") or "")
     answer["ok"] = result.get("result_type") == "answer" and bool(answer["final"])
     if not answer["ok"]:
@@ -156,8 +202,8 @@ async def browse(
     Needs a started Runner.
 
     A decision model writes ``decision_ticks.json`` under ``logs_dir`` and returns the ticks and the policy's report with
-    the answer; ``llm`` writes ``chat_calls.json``. ``decision_model`` is required by every other name and unused
-    by ``llm``.
+    the answer; ``llm`` writes ``chat_calls.json``. Every model saves the page the task ended on as ``final.png`` there.
+    ``decision_model`` is required by every other name and unused by ``llm``.
     """
     logs_dir.mkdir(parents=True, exist_ok=True)
     calls: list[dict[str, Any]] = []
@@ -177,7 +223,7 @@ async def browse(
                 browser_instance=instance,
                 browser_capabilities=["unsafe_dev"] if policy.batch_actions else None,
             )
-            answer = await run_task(agent, goal, timeout_s=timeout_s)
+            answer = await run_task(agent, goal, timeout_s=timeout_s, logs_dir=logs_dir)
             report = slot_model.report()
             answer["usage"] = await asyncio.to_thread(  # the price catalogue fetch is a blocking HTTP call
                 usage_summary, calls, jev_input_tokens=report["jev_input_tokens"], decisions=report["decisions"]
@@ -207,7 +253,7 @@ async def browse(
                 workspace=workspace,
                 browser_instance=instance,
             )
-            answer = finish_llm(await run_task(agent, goal, timeout_s=timeout_s))
+            answer = finish_llm(await run_task(agent, goal, timeout_s=timeout_s, logs_dir=logs_dir))
             answer["usage"] = await asyncio.to_thread(
                 usage_summary, calls, jev_input_tokens=0, decisions=sum(1 for call in calls if call["tool_calls"])
             )
@@ -262,7 +308,7 @@ def parser(spec: BrowserAgentSpec) -> argparse.ArgumentParser:
         "--logs-dir",
         type=Path,
         default=RUNS_DIR / spec.name / f"{datetime.now():%Y-%m-%d__%H-%M-%S}",
-        help="where the ticks, the chat calls and the workspace go",
+        help="where the ticks, the chat calls, the final screenshot and the workspace go",
     )
     build.add_argument(
         "--profile-out",
