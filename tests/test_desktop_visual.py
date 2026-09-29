@@ -80,6 +80,8 @@ class TestVisualTargets(IsolatedAsyncioTestCase):
                 "Canvas",
                 "--app-path",
                 "/tmp/Canvas.app",
+                "--window-title",
+                "Canvas task",
                 "--goal",
                 "click Save",
                 "--expect",
@@ -97,8 +99,8 @@ class TestVisualTargets(IsolatedAsyncioTestCase):
             task = desktop.make_series(args)
             async with task.session:
                 await task.env_for(0).reset()
-        launch.assert_awaited_once_with("/tmp/Canvas.app", driver)
-        driver.find_window.assert_awaited_once_with("Canvas")
+        launch.assert_awaited_once_with("/tmp/Canvas.app", driver, "Canvas task")
+        driver.find_window.assert_awaited_once_with("Canvas", "Canvas task")
 
     async def test_multimodal_ax_task_receives_current_window_image(self) -> None:
         driver = AsyncMock()
