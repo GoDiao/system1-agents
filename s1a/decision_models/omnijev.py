@@ -28,6 +28,8 @@ OMNIJEV_DEFAULT_CHECKPOINT = "tinnel123/OmniJev-0.8B"
 OMNIJEV_DEFAULT_REVISION = "v1.1"
 OMNIJEV_DEFAULT_BASE = "Qwen/Qwen3.5-0.8B"
 OMNIJEV_STATE_CHARS = 6000  # the text state read with the picture; the picture carries the rest
+OMNIJEV_PROMPTS = ("full", "short")  # full: text state + goal + rules + ask; short: goal + ask over the screenshot
+OMNIJEV_DEFAULT_PROMPT = "full"
 _SUFFIXES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
 
@@ -58,13 +60,16 @@ def omnijev_context(observation: Observation) -> str:
     return text[:OMNIJEV_STATE_CHARS]
 
 
-def omnijev_question(question: Question, context: str) -> Json:
-    """One question in OmniJev's shape: the text state, the goal and the rules in front of the ask."""
-    lines = [f"State: {context}"] if context else []
+def omnijev_question(question: Question, context: str, *, prompt: str = "full") -> Json:
+    """One question in OmniJev's shape. ``full``: the text state, the goal and the rules in front of the ask.
+    ``short``: the goal and the ask only; the screenshot carries the page and the rules stay out."""
+    full = prompt == "full"
+    lines = [f"State: {context}"] if context and full else []
     if isinstance(question, ChoiceQuestion):
         if question.goal:
             lines.append(f"Task: {question.goal}")
-        lines.extend(question.rules)
+        if full:
+            lines.extend(question.rules)
         lines.append(
             f"Which element should {question.operation} act on?" if question.operation else "Which option comes next?"
         )
@@ -101,9 +106,12 @@ class OmniJevModel(DecisionModel):
     supports_images = True
     deterministic = True
 
-    def __init__(self, agent: OmniJevAgent, *, model: str) -> None:
+    def __init__(self, agent: OmniJevAgent, *, model: str, prompt: str = OMNIJEV_DEFAULT_PROMPT) -> None:
+        if prompt not in OMNIJEV_PROMPTS:
+            raise ValueError(f"omnijev prompt is one of {OMNIJEV_PROMPTS}, not {prompt!r}")
         self._agent = agent
         self._model = model
+        self._prompt = prompt
 
     @property
     def model(self) -> str:
@@ -116,7 +124,7 @@ class OmniJevModel(DecisionModel):
                 error_msg="omnijev decides over a screenshot; this observation carries no image",
             )
         context = omnijev_context(observation)
-        asked = {name: omnijev_question(question, context) for name, question in questions.items()}
+        asked = {name: omnijev_question(question, context, prompt=self._prompt) for name, question in questions.items()}
         started = time.perf_counter()
         with tempfile.TemporaryDirectory(prefix="s1a-omnijev-") as folder:
             paths = [_write_image(image, Path(folder), index) for index, image in enumerate(observation.images)]
@@ -134,7 +142,13 @@ class OmniJevModel(DecisionModel):
     def from_env(cls) -> "OmniJevModel":
         """``OMNIJEV_REPO`` (a local clone of the OmniJev repository, required), ``OMNIJEV_CHECKPOINT`` (a hub id or a
         local directory), ``OMNIJEV_REVISION`` (for a hub id) and ``OMNIJEV_BASE`` (the Qwen3.5 backbone of the same
-        size, a hub id or a local directory)."""
+        size, a hub id or a local directory), ``OMNIJEV_PROMPT`` (``full`` or ``short``, see ``omnijev_question``)."""
+        prompt = os.getenv("OMNIJEV_PROMPT") or OMNIJEV_DEFAULT_PROMPT
+        if prompt not in OMNIJEV_PROMPTS:
+            raise build_error(
+                StatusCode.MODEL_SERVICE_CONFIG_ERROR,
+                error_msg=f"OMNIJEV_PROMPT is one of {', '.join(OMNIJEV_PROMPTS)}, not {prompt!r}",
+            )
         repo = os.getenv("OMNIJEV_REPO")
         if not repo or not (Path(repo) / "mso" / "infer.py").is_file():
             raise build_error(
@@ -156,7 +170,7 @@ class OmniJevModel(DecisionModel):
         revision = os.getenv("OMNIJEV_REVISION") or OMNIJEV_DEFAULT_REVISION
         base = os.getenv("OMNIJEV_BASE") or OMNIJEV_DEFAULT_BASE
         agent = MSO1(_local(checkpoint, revision), _local(base, None))
-        return cls(agent, model=checkpoint if Path(checkpoint).is_dir() else f"{checkpoint}@{revision}")
+        return cls(agent, model=checkpoint if Path(checkpoint).is_dir() else f"{checkpoint}@{revision}", prompt=prompt)
 
 
 def _local(name: str, revision: str | None) -> str:

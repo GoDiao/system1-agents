@@ -82,6 +82,18 @@ class TestMapping(IsolatedAsyncioTestCase):
         self.assertTrue(instructions[0].startswith("State: "))
         self.assertEqual(instructions[1:], ["Task: find flights", "one way only", "Which element should CLICK act on?"])
 
+    async def test_the_short_prompt_keeps_the_goal_and_the_ask_only(self) -> None:
+        agent = FakeMSO1()
+        question = ChoiceQuestion({"1": "a"}, goal="find flights", rules="one way only", operation="CLICK")
+        model = OmniJevModel(agent, model="m", prompt="short")
+        await model.decide_many(PICTURED, {"click_target": question})
+        instructions = agent.calls[0][1]["click_target"]["instructions"]
+        self.assertEqual(instructions, "Task: find flights\nWhich element should CLICK act on?")
+
+    def test_an_unknown_prompt_is_refused(self) -> None:
+        with self.assertRaises(ValueError):
+            OmniJevModel(FakeMSO1(), model="m", prompt="long")
+
     async def test_a_browser_element_row_becomes_its_label_and_value(self) -> None:
         agent = FakeMSO1()
         question = ChoiceQuestion(
@@ -136,6 +148,13 @@ class TestFromEnv(TestCase):
                 OmniJevModel.from_env()
         self.assertEqual(caught.exception.status, StatusCode.MODEL_SERVICE_CONFIG_ERROR)
         self.assertIn("OMNIJEV_REPO", str(caught.exception))
+
+    def test_an_unknown_omnijev_prompt_is_a_config_error_before_any_load(self) -> None:
+        with patch.dict(os.environ, {"OMNIJEV_PROMPT": "long", "OMNIJEV_REPO": ""}):
+            with self.assertRaises(BaseError) as caught:
+                OmniJevModel.from_env()
+        self.assertEqual(caught.exception.status, StatusCode.MODEL_SERVICE_CONFIG_ERROR)
+        self.assertIn("OMNIJEV_PROMPT", str(caught.exception))
 
     def test_a_folder_that_is_not_an_omnijev_clone_is_a_config_error(self) -> None:
         with patch.dict(os.environ, {"OMNIJEV_REPO": str(Path(__file__).parent)}):
