@@ -28,6 +28,7 @@ OMNIJEV_DEFAULT_CHECKPOINT = "tinnel123/OmniJev-0.8B"
 OMNIJEV_DEFAULT_REVISION = "v1.1"
 OMNIJEV_DEFAULT_BASE = "Qwen/Qwen3.5-0.8B"
 OMNIJEV_STATE_CHARS = 6000  # the text state read with the picture; the picture carries the rest
+OMNIJEV_PAGE_TEXT_CHARS = 2000  # a browser page's free text, capped on its own so the actions and elements stay in
 OMNIJEV_PROMPTS = ("full", "short")  # full: text state + goal + rules + ask; short: goal + ask over the screenshot
 OMNIJEV_DEFAULT_PROMPT = "full"
 _SUFFIXES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
@@ -54,8 +55,19 @@ def omnijev_option(description: str | Json) -> str:
 
 
 def omnijev_context(observation: Observation) -> str:
-    """The observation's text state, read in front of every question (OmniJev reads text context in the instructions)."""
+    """The observation's text state, read in front of every question (OmniJev reads text context in the instructions).
+
+    A browser state is reordered so the whole budget cannot go to the page's free text: the recent actions come first
+    (the screenshot cannot show them, and the rules depend on them, e.g. PRESS_ENTER after a Search click that did
+    nothing), then the page with its text capped at ``OMNIJEV_PAGE_TEXT_CHARS``, then the element table."""
     state = observation.state
+    if isinstance(state, dict) and isinstance(state.get("page"), dict):
+        page = dict(state["page"])
+        page_text = str(page.get("text") or "")
+        if len(page_text) > OMNIJEV_PAGE_TEXT_CHARS:
+            page["text"] = page_text[:OMNIJEV_PAGE_TEXT_CHARS] + " …"
+        rest = {key: value for key, value in state.items() if key not in ("recent_actions", "page")}
+        state = {"recent_actions": state.get("recent_actions", []), "page": page, **rest}
     text = state if isinstance(state, str) else json.dumps(state, ensure_ascii=False, separators=(",", ":"))
     return text[:OMNIJEV_STATE_CHARS]
 

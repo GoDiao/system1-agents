@@ -82,6 +82,22 @@ class TestMapping(IsolatedAsyncioTestCase):
         self.assertTrue(instructions[0].startswith("State: "))
         self.assertEqual(instructions[1:], ["Task: find flights", "one way only", "Which element should CLICK act on?"])
 
+    def test_a_long_page_text_does_not_push_out_the_recent_actions_or_the_elements(self) -> None:
+        state = {
+            "page": {"url": "https://flights", "title": "Flights", "text": "x" * 10_000},
+            "elements": [{"index": "19", "role": "button", "label": "Search"}],
+            "recent_actions": [{"action": "Search", "kind": "click", "page_changed": False}],
+        }
+        context = omnijev_module.omnijev_context(Observation(state, images=(SCREEN,)))
+        self.assertLessEqual(len(context), omnijev_module.OMNIJEV_STATE_CHARS)
+        self.assertTrue(context.startswith('{"recent_actions":[{"action":"Search"'))
+        self.assertIn('"label":"Search"', context)
+        self.assertLess(context.count("x"), omnijev_module.OMNIJEV_PAGE_TEXT_CHARS + 10)
+
+    def test_a_non_browser_state_is_sent_as_it_is(self) -> None:
+        context = omnijev_module.omnijev_context(Observation({"score": 1}, images=(SCREEN,)))
+        self.assertEqual(context, '{"score":1}')
+
     async def test_the_short_prompt_keeps_the_goal_and_the_ask_only(self) -> None:
         agent = FakeMSO1()
         question = ChoiceQuestion({"1": "a"}, goal="find flights", rules="one way only", operation="CLICK")
