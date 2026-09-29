@@ -27,13 +27,17 @@ LAYA_BROWSER_LABEL_CHARS = 40  # a row's label/value, kept over its full text (J
 LAYA_BROWSER_TITLE_CHARS = 80
 LAYA_BROWSER_HISTORY_KEPT = 3  # of the browser front's last ten actions; the freshest ones carry the signal
 LAYA_BROWSER_OPTION_CHARS = 28  # per target option: the label (and value) Laya reads, all options share one budget
+LAYA_BROWSER_BLOCKER_CHARS = 24  # the overlay's name on a blocked row: the link to the button that closes it
 _FLAG_LETTERS = (
     ("checked", "C"),
     ("selected", "S"),
     ("expanded", "X"),
-    ("blocked_by", "B"),
     ("click_did_nothing", "D"),
 )
+_HEAD_ASKS = {
+    "operation": "Which operation comes next?",
+    "text_value": "Which value should be typed into the field?",
+}
 
 
 def laya_question(question: Question) -> Json:
@@ -69,27 +73,37 @@ def _laya_browser_option(option: Any) -> Any:
     return label + (f" = {value[:LAYA_BROWSER_OPTION_CHARS]}" if value else "")
 
 
-def laya_browser_question(asked: Json) -> Json:
+def laya_browser_question(asked: Json, name: str = "") -> Json:
     """A browser-front choice question, shaped for Laya's one shared option budget (``head_max_len`` holds the
-    instruction and every option): the agent's long rules dropped, the instruction reduced to the goal and the
-    operation, each target option reduced to its element's label and value. Unfolded, a 23-element target head
-    left each option about six tokens, ``12: {"element": "[``, so Laya never saw an element's name.
+    instruction and every option): the agent's long rules dropped, the instruction reduced to the goal and the ask
+    of its head (``name``: ``operation``, ``<op>_target``, ``text_value``), each target option reduced to its
+    element's label and value. Unfolded, a 23-element target head left each option about six tokens,
+    ``12: {"element": "[``, so Laya never saw an element's name. Two options that shorten to the same text (a result
+    list, a calendar) get their key in front, so Laya can still tell them apart.
     Anything that is not a goal-bearing choice question passes through."""
     instructions = asked.get("instructions")
     if asked.get("type") != "choice" or not (isinstance(instructions, dict) and instructions.get("goal")):
         return asked
     operation = instructions.get("operation")
-    ask = f"Which element should {operation} act on?" if operation else "Which operation comes next?"
-    return {
-        "type": "choice",
-        "instructions": f"Task: {instructions['goal']} {ask}",
-        "criteria": {key: _laya_browser_option(option) for key, option in asked["criteria"].items()},
+    if name in _HEAD_ASKS:
+        ask = _HEAD_ASKS[name]
+    elif operation:
+        ask = f"Which element should {operation} act on?"
+    else:
+        ask = "Which option fits?"
+    criteria = {key: _laya_browser_option(option) for key, option in asked["criteria"].items()}
+    texts = list(criteria.values())
+    criteria = {
+        key: (f"[{key}] {text}" if isinstance(text, str) and texts.count(text) > 1 else text)
+        for key, text in criteria.items()
     }
+    return {"type": "choice", "instructions": f"Task: {instructions['goal']} {ask}", "criteria": criteria}
 
 
 def _laya_browser_row(row: Json) -> str:
     """One element row as a short line instead of a JSON object: the repeated key names (``role``, ``label``, ...)
-    are what a tiny window can least afford. ``[CX]``-style flags stand in for the sparse boolean/id fields."""
+    are what a tiny window can least afford. ``[CX]``-style flags stand in for the sparse boolean fields; a blocked
+    row keeps its overlay's name, the only link to the button that closes it."""
     label = str(row.get("label") or "")[:LAYA_BROWSER_LABEL_CHARS]
     value = str(row.get("value") or "")[:LAYA_BROWSER_LABEL_CHARS]
     flags = "".join(letter for key, letter in _FLAG_LETTERS if row.get(key))
@@ -98,7 +112,14 @@ def _laya_browser_row(row: Json) -> str:
         parts.append(f"={value}")
     if flags:
         parts.append(f"[{flags}]")
+    if row.get("blocked_by"):
+        parts.append(f"(blocked by {str(row['blocked_by'])[:LAYA_BROWSER_BLOCKER_CHARS]})")
     return " ".join(part for part in parts if part)
+
+
+def is_browser_state(state: Json | str) -> bool:
+    """The browser front's per-tick state: a ``page`` object and an ``elements`` list."""
+    return isinstance(state, dict) and isinstance(state.get("page"), dict) and isinstance(state.get("elements"), list)
 
 
 def laya_state(state: Json | str) -> Json | str:
@@ -112,9 +133,7 @@ def laya_state(state: Json | str) -> Json | str:
     dozen-element page the JSON-shaped state alone ran well past a 512-token window before a single instruction
     token was spent.
     """
-    if not (
-        isinstance(state, dict) and isinstance(state.get("page"), dict) and isinstance(state.get("elements"), list)
-    ):
+    if not is_browser_state(state):
         return state
     compact: Json = {
         "page": {
@@ -150,10 +169,9 @@ class LayaModel(DecisionModel):
     async def _decide(self, observation: Observation, questions: dict[str, Question]) -> Reply:
         asked = {name: laya_question(question) for name, question in questions.items()}
         state = observation.state
-        if self._compact_browser_state:
+        if self._compact_browser_state and is_browser_state(state):  # its questions are the browser heads
             state = laya_state(state)
-            if state is not observation.state:  # a browser-shaped state: its questions are the browser heads
-                asked = {name: laya_browser_question(question) for name, question in asked.items()}
+            asked = {name: laya_browser_question(question, name) for name, question in asked.items()}
         started = time.perf_counter()
         try:
             payload = await asyncio.to_thread(self._agent.system_one, state, asked)

@@ -110,7 +110,7 @@ is cut to an equal share and the instruction to what is left. The browser front'
 objects, so a 23-element click head left each option about six tokens, `12: {"element": "[`, and Laya never
 saw an element's name. With a folded state, `laya_browser_question` rewrites each browser question: the
 instruction becomes the goal and the operation (the agent's rules, 446 tokens and about 550 on a target head, are
-dropped), and each target option becomes its element's label and value, `Where from? = Zurich`. Measured on a
+dropped), and each target option becomes its element's label and value, `Where from? = Zurich`. Each head keeps its own ask (`text_value` asks which value to type, not which operation comes next); two options that shorten to the same text keep their key in front (`[2] Select flight: Swiss LX 318,`); a blocked row keeps its overlay's name (`(blocked by Cookie consent)`). Measured on a
 Google Flights run with this shape: 157 to 206 tokens for the operation head, 73 to 101 for the TYPE_TEXT and
 PRESS_ENTER heads, 92 to 915 for the CLICK head (a calendar page offers 66 days), and 98 to 1,002 tokens of folded
 state. Browser runs therefore want `LAYA_MAX_LEN=1536` and `LAYA_HEAD_MAX_LEN=1024`.

@@ -25,7 +25,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
   reaches Laya as the goal and the operation (the agent's long rules dropped) and each target option as its
   element's label and value. Laya fits a question's instruction and all its options into one `head_max_len`
   budget, so a 23-element target head left each option about six tokens, `12: {"element": "[`, and no
-  element name. Browser runs want `LAYA_MAX_LEN=1536` and `LAYA_HEAD_MAX_LEN=1024`: a calendar page's target
+  element name. `text_value` gets its own ask; options that shorten alike keep their key; a blocked row keeps its
+  overlay's name. Browser runs want `LAYA_MAX_LEN=1536` and `LAYA_HEAD_MAX_LEN=1024`: a calendar page's target
   head measures about 900 tokens.
 
 ### Changed

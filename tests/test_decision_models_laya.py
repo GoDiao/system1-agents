@@ -223,9 +223,36 @@ class TestLayaBrowserQuestion(TestCase):
 
     def test_the_operation_head_keeps_its_string_options(self) -> None:
         operation = ChoiceQuestion({"CLICK": "Press a control", "DONE": "Finished"}, goal="g", rules="r")
-        asked = laya_module.laya_browser_question(jev_question(operation))
+        asked = laya_module.laya_browser_question(jev_question(operation), "operation")
         self.assertEqual(asked["criteria"], {"CLICK": "Press a control", "DONE": "Finished"})
         self.assertEqual(asked["instructions"], "Task: g Which operation comes next?")
+
+    def test_the_text_value_head_asks_for_a_value_not_an_operation(self) -> None:
+        values = ChoiceQuestion({"London": "London", "Zurich": "Zurich", "none": "No value fits."}, goal="g", rules="r")
+        asked = laya_module.laya_browser_question(jev_question(values), "text_value")
+        self.assertEqual(asked["instructions"], "Task: g Which value should be typed into the field?")
+
+    def test_options_that_shorten_to_the_same_text_keep_their_key(self) -> None:
+        flights = ChoiceQuestion(
+            {
+                "2": {"element": "[2] Select flight: Swiss LX 318, departs 07:10"},
+                "3": {"element": "[3] Select flight: Swiss LX 318, departs 09:40"},
+                "4": {"element": "[4] Search"},
+            },
+            goal="g",
+            operation="CLICK",
+        )
+        criteria = laya_module.laya_browser_question(jev_question(flights), "click_target")["criteria"]
+        self.assertEqual(len(set(criteria.values())), 3)
+        self.assertTrue(criteria["2"].startswith("[2] ") and criteria["3"].startswith("[3] "))
+        self.assertEqual(criteria["4"], "Search")
+
+    def test_a_blocked_row_keeps_the_name_of_its_overlay(self) -> None:
+        row = {"index": "7", "role": "button", "label": "Search", "blocked_by": "Before you continue to Google"}
+        self.assertIn(
+            "(blocked by Before you continue to G)",
+            laya_module.laya_state({"page": {"url": "u"}, "elements": [row]})["elements"][0],
+        )
 
     def test_a_question_without_a_goal_passes_through(self) -> None:
         for asked in (jev_question(PICK), {"type": "noul", "instructions": "safe?"}):
