@@ -322,8 +322,8 @@ class TestDecisionTimeout(TestCase):
             decision_model = JevModel.from_env(timeout_s=2.0)
         self.assertEqual(decision_model._transport._timeout_s, 2.0)
 
-    def test_a_value_that_is_not_a_positive_number_is_a_config_error(self) -> None:
-        for raw in ("abc", "0", "-3"):
+    def test_a_value_that_is_not_a_finite_positive_number_is_a_config_error(self) -> None:
+        for raw in ("abc", "0", "-3", "nan", "inf", "-inf", "1e9999"):
             with self.subTest(raw=raw), patch.dict(os.environ, {**self.ENV, "S1A_DECISION_TIMEOUT_S": raw}):
                 with self.assertRaises(BaseError) as caught:
                     JevModel.from_env()

@@ -8,6 +8,7 @@ behind ``JevModel``. Nothing in here reads an answer.
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 import time
 from typing import Any
@@ -42,10 +43,11 @@ def decisions_timeout_from_env() -> float:
         value = float(raw)
     except ValueError:
         value = 0.0
-    if value <= 0:
+    # float() also reads nan, inf and 1e9999 (inf): nan passes `<= 0` and poisons the deadline, inf removes it
+    if not math.isfinite(value) or value <= 0:
         raise build_error(
             StatusCode.MODEL_SERVICE_CONFIG_ERROR,
-            error_msg=f"S1A_DECISION_TIMEOUT_S must be a positive number of seconds, not {raw!r}",
+            error_msg=f"S1A_DECISION_TIMEOUT_S must be a finite, positive number of seconds, not {raw!r}",
         )
     return value
 
