@@ -62,10 +62,10 @@ def plan_rule(plan: tuple[tuple[str, ...], ...]) -> Any:
     return rule
 
 
-async def launch_app(app: str, driver: CuaDriver) -> None:
+async def launch_app(app: str, driver: CuaDriver, window_title: str = "") -> None:
     """Windows uses the driver's launch result; macOS keeps ``open -a`` and name-based discovery."""
     if sys.platform == "win32":
-        await driver.launch_app(app)
+        await driver.launch_app(app, window_title)
         return
     process = await asyncio.create_subprocess_exec("open", "-a", app)
     returncode = await process.wait()
@@ -77,7 +77,7 @@ async def launch_app(app: str, driver: CuaDriver) -> None:
 @asynccontextmanager
 async def _session(driver: CuaDriver, app: str, *, owner: str, title: str) -> AsyncIterator[None]:
     async with opened(driver):
-        await launch_app(app, driver)
+        await launch_app(app, driver, title)
         for attempt in range(20):
             try:
                 await driver.find_window(owner, title) if title else await driver.find_window(owner)

@@ -135,13 +135,15 @@ class CuaDriver:
             raise DriverError(f"{tool}: the driver returned no JSON object: {text[:200]!r}")
         return payload
 
-    async def launch_app(self, app_name: str) -> None:
-        """Launch through the driver and pin the returned window, including Windows shared-host apps."""
+    async def launch_app(self, app_name: str, window_title: str = "") -> None:
+        """Launch through the driver and pin the one visible window matching the optional exact title."""
         launched = await self.call("launch_app", **await self._launch_target(app_name))
         windows = launched.get("windows")
         if not isinstance(windows, list):
             raise DriverError(f"launch_app: no windows array for {app_name!r}")
         visible = [w for w in windows if isinstance(w, dict) and w.get("is_on_screen", True)]
+        if window_title:
+            visible = [w for w in visible if str(w.get("title") or "") == window_title]
         if len(visible) != 1:
             raise DriverError(f"launch_app: expected one on-screen window of {app_name!r}, got {len(visible)}")
         window = visible[0]
