@@ -31,6 +31,25 @@ _RETRIED_TRANSPORT = (httpx.ConnectError, httpx.ConnectTimeout, httpx.RemoteProt
 _MAX_RETRY_AFTER_S = 5.0
 
 
+def decisions_timeout_from_env() -> float:
+    """The deadline for one decision, retries included: ``S1A_DECISION_TIMEOUT_S`` when set, else
+    ``DECISIONS_TIMEOUT_S``. A local System One server (OneJev, CLM) behind ``TYPESAFE_API_URL`` can take several
+    seconds on a page with many options, past the 5 s that fits Jev."""
+    raw = (os.getenv("S1A_DECISION_TIMEOUT_S") or "").strip()
+    if not raw:
+        return DECISIONS_TIMEOUT_S
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 0.0
+    if value <= 0:
+        raise build_error(
+            StatusCode.MODEL_SERVICE_CONFIG_ERROR,
+            error_msg=f"S1A_DECISION_TIMEOUT_S must be a positive number of seconds, not {raw!r}",
+        )
+    return value
+
+
 def decisions_backend_from_env() -> str:
     """``typesafe`` when a TypeSafe key is set and no proxy URL overrides it; otherwise the OpenRouter proxy."""
     return "typesafe" if os.getenv("TYPESAFE_API_KEY") and not os.getenv("TYPESAFE_API_URL") else "openrouter"
