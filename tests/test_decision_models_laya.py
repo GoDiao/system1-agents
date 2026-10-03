@@ -188,6 +188,29 @@ class TestLayaState(TestCase):
         self.assertEqual(len(compact["recent_actions"]), laya_module.LAYA_BROWSER_HISTORY_KEPT)
         self.assertEqual(compact["recent_actions"][-1], "click:step-9 (no change)")
 
+    def test_the_probes_string_flags_are_read_strictly(self) -> None:
+        """The probe sends aria-* and checkbox state as strings; ``"false"`` must not light a flag."""
+        rows = [
+            {"index": "1", "role": "button", "label": "Menu", "expanded": "false"},
+            {"index": "2", "role": "checkbox", "label": "Nonstop", "checked": "false"},
+            {"index": "3", "role": "button", "label": "Open", "expanded": "true", "checked": "TRUE"},
+            {"index": "4", "role": "button", "label": "Dead", "click_did_nothing": True},
+        ]
+        lines = laya_module.laya_state({"page": {"url": "u"}, "elements": rows})["elements"]
+        self.assertEqual(lines[0], "1 button Menu")
+        self.assertEqual(lines[1], "2 checkbox Nonstop")
+        self.assertIn("[CX]", lines[2])
+        self.assertIn("[D]", lines[3])
+
+    def test_an_action_not_yet_measured_is_not_shown_as_no_change(self) -> None:
+        history = [
+            {"action": "wait", "kind": "wait", "text": None, "page_changed": None},
+            {"action": "Search", "kind": "click", "text": "", "page_changed": True},
+            {"action": "Done", "kind": "click", "text": "", "page_changed": False},
+        ]
+        compact = laya_module.laya_state({"page": {"url": "u"}, "elements": [], "recent_actions": history})
+        self.assertEqual(compact["recent_actions"], ["wait:wait", "click:Search", "click:Done (no change)"])
+
     def test_compaction_shrinks_the_json_size_by_an_order_of_magnitude(self) -> None:
         import json
 

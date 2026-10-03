@@ -9,6 +9,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 - Windows development checks: the smoke script accepts CRLF output, shell scripts and Git hooks retain LF
   line endings, and tests check socket closure and invalid output directories without Unix-specific behavior.
   The core CI matrix now covers Windows with Python 3.11.
+- Browser front: a WAIT whose in-page settle moved the page now records `page_changed: true` in the history, so
+  the next state no longer shows that wait as unmeasured.
 
 ### Added
 
@@ -19,7 +21,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
   under `docs/results/flights/rerun-2026-09-23/`.
 - `laya_state` (`s1a/decision_models/laya.py`): folds a browser-front state to fit Laya's 512 to 1024 token
   window before every call — `page.text` dropped, one short line per element row instead of a JSON object, the
-  last three actions instead of ten — roughly a tenfold reduction in the JSON-shaped state on the pages measured.
+  last three actions instead of ten, a probe flag such as `"expanded": "false"` read as off, and "(no change)"
+  only on an action measured as unchanged — roughly a tenfold reduction in the JSON-shaped state on the pages measured.
   On by default; `LAYA_COMPACT_BROWSER_STATE=0` turns it off. `docs/decision-models.md`.
 - `laya_browser_question` (`s1a/decision_models/laya.py`): with a folded browser state, each browser question
   reaches Laya as the goal and the operation (the agent's long rules dropped) and each target option as its

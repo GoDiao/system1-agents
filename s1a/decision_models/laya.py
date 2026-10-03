@@ -12,7 +12,7 @@ import os
 import time
 from contextlib import AbstractContextManager, nullcontext
 from importlib import metadata
-from typing import Any
+from typing import Any, TypeGuard
 
 from openjiuwen.core.common.exception.codes import StatusCode
 from openjiuwen.core.common.exception.errors import build_error
@@ -100,13 +100,21 @@ def laya_browser_question(asked: Json, name: str = "") -> Json:
     return {"type": "choice", "instructions": f"Task: {instructions['goal']} {ask}", "criteria": criteria}
 
 
+def _is_on(flag: Any) -> bool:
+    """A row flag that is set. The probe sends aria-* and checkbox state as strings (``"true"``, ``"false"``),
+    and ``"false"`` is a non-empty, truthy string; the policy's own flags (``click_did_nothing``) are booleans."""
+    if isinstance(flag, str):
+        return flag.strip().lower() == "true"
+    return flag is True
+
+
 def _laya_browser_row(row: Json) -> str:
     """One element row as a short line instead of a JSON object: the repeated key names (``role``, ``label``, ...)
     are what a tiny window can least afford. ``[CX]``-style flags stand in for the sparse boolean fields; a blocked
     row keeps its overlay's name, the only link to the button that closes it."""
     label = str(row.get("label") or "")[:LAYA_BROWSER_LABEL_CHARS]
     value = str(row.get("value") or "")[:LAYA_BROWSER_LABEL_CHARS]
-    flags = "".join(letter for key, letter in _FLAG_LETTERS if row.get(key))
+    flags = "".join(letter for key, letter in _FLAG_LETTERS if _is_on(row.get(key)))
     parts = [str(row.get("index", "")), str(row.get("role") or ""), label]
     if value:
         parts.append(f"={value}")
@@ -117,7 +125,7 @@ def _laya_browser_row(row: Json) -> str:
     return " ".join(part for part in parts if part)
 
 
-def is_browser_state(state: Json | str) -> bool:
+def is_browser_state(state: Json | str) -> TypeGuard[Json]:
     """The browser front's per-tick state: a ``page`` object and an ``elements`` list."""
     return isinstance(state, dict) and isinstance(state.get("page"), dict) and isinstance(state.get("elements"), list)
 
@@ -145,7 +153,8 @@ def laya_state(state: Json | str) -> Json | str:
     recent = state.get("recent_actions")
     if recent:
         compact["recent_actions"] = [
-            f"{entry.get('kind', '')}:{entry.get('action', '')}" + ("" if entry.get("page_changed") else " (no change)")
+            f"{entry.get('kind', '')}:{entry.get('action', '')}"
+            + (" (no change)" if entry.get("page_changed") is False else "")  # None: not measured, not "no change"
             for entry in recent[-LAYA_BROWSER_HISTORY_KEPT:]
         ]
     return compact

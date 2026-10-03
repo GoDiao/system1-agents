@@ -89,6 +89,8 @@ real; `bodies` records every request). `ScriptedModel` fakes the interface for f
    plus the backend's mapping tests; a fake for its SDK lives in that file.
 4. An optional extra in `pyproject.toml` and an env block in `.env.example` when it needs a dependency.
 
+### Laya browser input shaping
+
 Laya is text only and reads a 512 to 1024 token window; it fits the tool front first. The browser front's element
 tables, sent to Jev as-is, ran well past that window on a real page before a single instruction token was spent:
 a JSON object per row, the full page text, and ten actions of history. The window check sums `input_tokens` over
