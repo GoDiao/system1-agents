@@ -10,7 +10,11 @@ reviews:
   sequence_diagrams: false
   assess_linked_issues: true
   finishing_touches:
+    docstrings:
+      enabled: false
     unit_tests:
+      enabled: false
+    autofix:
       enabled: false
   auto_review:
     enabled: true
