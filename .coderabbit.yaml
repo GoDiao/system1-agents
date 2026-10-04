@@ -9,6 +9,7 @@ reviews:
   poem: false
   sequence_diagrams: false
   assess_linked_issues: true
+  suggested_reviewers: false
   finishing_touches:
     docstrings:
       enabled: false

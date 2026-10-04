@@ -36,14 +36,17 @@ If a comment cannot meet all six, omit it.
 
 ## Process
 
-1. Read the PR title and description, and every issue it closes or links, then the changed files.
+1. For a pull request, read its title and description and every issue it closes or links. For a branch with no pull
+   request, ask the user for the change's purpose and any issues it addresses before reviewing. Then read the changed
+   files.
 2. Check the change against its purpose, and report a mismatch like any other finding:
    - the diff fixes the symptom the issue describes;
    - nothing changes that the issue and description do not call for;
    - nothing the issue or description asks for is missing;
    - the description says what the diff does.
 
-   With no linked issue, check against the description alone and say there is no issue.
+   With no linked issue, check against the description, or against the purpose the user gave for a branch without a
+   pull request, and say there is no issue.
 3. Run or inspect the relevant tests when possible.
 4. Identify only issues that CI cannot prove.
 5. Produce a short review with at most 5 high-confidence comments.
