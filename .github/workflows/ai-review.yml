@@ -5,7 +5,7 @@ name: AI PR Review
 # from the base branch, and the model's answer reaches the comment as a file, never as part of a script.
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
   issue_comment:
     types: [created]
 
@@ -81,8 +81,12 @@ jobs:
               for ISSUE in $ISSUES; do
                 echo
                 echo "Linked issue $ISSUE:"
-                gh issue view "$ISSUE" --json title,body --jq '.title, (.body // "")' \
-                  | head -c "$AI_REVIEW_MAX_CONTEXT_BYTES"
+                if ISSUE_TEXT=$(gh issue view "$ISSUE" --json title,body --jq '.title, (.body // "")') \
+                   && [ -n "$ISSUE_TEXT" ]; then
+                  printf '%s\n' "$ISSUE_TEXT" | head -c "$AI_REVIEW_MAX_CONTEXT_BYTES"
+                else
+                  echo "(issue text not available to this job)"
+                fi
                 echo
               done
             fi
