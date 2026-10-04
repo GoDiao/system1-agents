@@ -9,6 +9,9 @@ reviews:
   poem: false
   sequence_diagrams: false
   assess_linked_issues: true
+  finishing_touches:
+    unit_tests:
+      enabled: false
   auto_review:
     enabled: true
     drafts: false
