@@ -8,13 +8,21 @@ browser: they exercise the loopback fixture server with plain HTTP and the paire
 from __future__ import annotations
 
 import asyncio
-from unittest import TestCase
+import tempfile
+from contextlib import asynccontextmanager
+from pathlib import Path
+from unittest import TestCase, mock
+from urllib.error import HTTPError
+from urllib.parse import urlencode, urlparse
+from urllib.request import Request, urlopen
 
+from evals.recovery import runner
 from evals.recovery.fixture import (
     BLOCKED,
     DEFAULT_TASKS,
     NORMAL,
     RECOVERABLE,
+    FormTask,
     page_html,
     post_submit,
     start_fixture,
@@ -313,3 +321,109 @@ class TestRunArgumentValidation(TestCase):
             asyncio.run(run_eval(tasks=(), config=EvalConfig()))
         with self.assertRaises(ValueError):
             asyncio.run(run_eval(tasks=(NORMAL, NORMAL), config=EvalConfig()))
+
+
+def _get(url: str) -> tuple[int, str]:
+    with urlopen(url, timeout=10) as response:  # noqa: S310 - a loopback URL built by the fixture under test
+        return response.status, response.read().decode("utf-8", errors="replace")
+
+
+def _post(url: str, value: str) -> tuple[int, str]:
+    body = urlencode({"value": value}).encode()
+    request = Request(url, data=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
+    try:
+        with urlopen(request, timeout=10) as response:  # noqa: S310 - a loopback URL built by the fixture under test
+            return response.status, response.read().decode("utf-8", errors="replace")
+    except HTTPError as exc:  # a rejected submit is an expected status, so read its body and return it
+        return exc.code, exc.read().decode("utf-8", errors="replace")
+
+
+def _goal_url(goal: str) -> str:
+    prefix = "Open "
+    start = goal.index(prefix) + len(prefix)
+    return goal[start : goal.index(" and ", start)]
+
+
+@asynccontextmanager
+async def _noop_runner():
+    yield
+
+
+def _recording_browse(tasks: tuple[FormTask, ...], observations: list[dict]) -> object:
+    """Read the trial fixture over HTTP and submit values without launching a browser."""
+    by_path = {task.path: task for task in tasks}
+
+    async def fake_browse(spec, policy, *, model_name, goal, **kwargs):
+        url = _goal_url(goal)
+        parsed = urlparse(url)
+        task = by_path.get(parsed.path)
+        if task is None:
+            raise AssertionError(f"trial opened {url!r}, which is no requested task's path")
+        status, body = _get(url)
+        observations.append({"task": task.name, "on": policy.rethink_on, "status": status, "body": body})
+        if status != 200:
+            raise AssertionError(f"{task.name}: fixture served {status} at {url}, not the requested page")
+        if body != page_html(task):
+            raise AssertionError(f"{task.name}: fixture served a page that is not the requested task's page")
+        base = f"{parsed.scheme}://{parsed.netloc}"
+        index_status, index_body = _get(f"{base}/")
+        if index_status != 200 or f"href='{task.path}'" not in index_body:
+            raise AssertionError(f"{task.name}: fixture index does not offer the requested task")
+        wrong_status, _ = _post(f"{base}/submit/{task.name}", "tampered")
+        if task.validate_submission and wrong_status != 422:
+            raise AssertionError(f"{task.name}: a wrong value was not rejected with 422 (got {wrong_status})")
+        expected_status, _ = _post(f"{base}/submit/{task.name}", task.expected_value)
+        if expected_status != 200:
+            raise AssertionError(f"{task.name}: the expected value did not submit (got {expected_status})")
+        return {"status": "BLOCKED", "report": {"history": [], "recovery": {}}, "ticks": []}
+
+    return fake_browse
+
+
+class TestRunEvalServesItsOwnTasks(TestCase):
+    """Custom routes, page behavior and submission validation must reach both recovery arms."""
+
+    def _run(self, tasks: tuple[FormTask, ...], observations: list[dict]) -> object:
+        with (
+            mock.patch.object(runner, "started_runner", _noop_runner),
+            mock.patch("evals.recovery.runner.browse.browse", _recording_browse(tasks, observations)),
+        ):
+            with tempfile.TemporaryDirectory() as tmp:
+                tmp_path = Path(tmp)
+                with mock.patch.object(runner, "HOME", tmp_path):
+                    return asyncio.run(
+                        run_eval(
+                            tasks=tasks,
+                            repeat=1,
+                            config=EvalConfig(timeout_s=5.0),
+                            results_dir=tmp_path / "results",
+                        )
+                    )
+
+    def test_custom_path_and_reused_default_path_are_served_to_both_arms(self) -> None:
+        custom = FormTask("custom_widget", "/widget", "Custom widget", "widget value", "normal")
+        reused = FormTask(
+            "relocked_normal", "/normal", "Relocked normal", "hello world", "recoverable", validate_submission=True
+        )
+        observations: list[dict] = []
+        run = self._run((custom, reused), observations)
+
+        self.assertEqual(len(run.records), 4, "two tasks times the off and on arms")
+        for record in run.records:
+            self.assertFalse(record.errored, f"{record.task}/{record.arm}: a served mismatch must surface, not play")
+            self.assertTrue(record.verified, f"{record.task}/{record.arm}: the requested task's oracle saw its submit")
+            self.assertEqual(record.oracle["task"], record.task)
+            self.assertTrue(record.oracle["verified"])
+            self.assertTrue(all(row["task"] == record.task for row in record.oracle["submissions"]))
+
+        by_task: dict[str, list[dict]] = {}
+        for observed in observations:
+            by_task.setdefault(observed["task"], []).append(observed)
+        self.assertEqual(set(by_task), {custom.name, reused.name}, "only the requested tasks are ever served")
+        for task in (custom, reused):
+            seen = by_task[task.name]
+            self.assertEqual(len(seen), 2, "the off and on arms both hit the requested task")
+            self.assertEqual({row["on"] for row in seen}, {False, True})
+            for row in seen:
+                self.assertEqual(row["status"], 200)
+                self.assertEqual(row["body"], page_html(task), "the served page is exactly the requested task's page")

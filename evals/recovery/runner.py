@@ -331,7 +331,9 @@ async def run_eval(
                     logs_dir = logs_root / f"{task.name}__{arm}__r{index}"
                     started = time.perf_counter()
                     try:
-                        episode, record = await run_trial(task, arm, index, config=config, logs_dir=logs_dir)
+                        episode, record = await run_trial(
+                            task, arm, index, config=config, logs_dir=logs_dir, tasks=tasks
+                        )
                     except Exception as exc:  # noqa: BLE001 - a trial that raised is a planned failure, not a drop
                         episode, record = _failed_episode(task, arm, index, exc, time.perf_counter() - started)
                     episodes_by_arm[arm].append(episode)

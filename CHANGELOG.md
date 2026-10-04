@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 ### Fixed
 
+- Custom recovery tasks now reach each trial's fixture with their requested routes, page behavior and submission
+  validation.
 - Bounded recovery treats an empty, whitespace-only or otherwise blank planner answer (browser and desktop) as a
   planner failure: the run stops with the existing reason and next action, the one attempt and its active seconds
   stay charged and the fresh observation is kept, instead of recording a `planned` event with an empty plan.
