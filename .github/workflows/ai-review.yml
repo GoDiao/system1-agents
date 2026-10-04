@@ -1,8 +1,10 @@
 name: AI PR Review
 
-# pull_request_target, so that pull requests from forks (the usual way in here) get the token this job needs.
-# Nothing from the pull request is checked out or run: the job reads the diff through the API, the prompt comes
-# from the base branch, and the model's answer reaches the comment as a file, never as part of a script.
+# pull_request_target, so that pull requests from forks (the usual way in here) get the secret this job needs.
+# Nothing from the pull request is checked out or run: scripts/ai_review.py and the skill come from the base branch,
+# the diff and the PR text are read through the API, and the model's answer is posted as data.
+# Setup: the secret AI_REVIEW_API_KEY turns it on; the variables AI_REVIEW_BASE_URL (any OpenAI-compatible endpoint)
+# and AI_REVIEW_MODEL pick the model. Without the secret the job does nothing.
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review, edited]
@@ -12,13 +14,6 @@ on:
 permissions:
   contents: read
   pull-requests: write
-  models: read
-
-env:
-  AI_REVIEW_MODEL: gpt-4.1
-  AI_REVIEW_MAX_TOKENS: "3000"
-  AI_REVIEW_MAX_DIFF_BYTES: "40000"
-  AI_REVIEW_MAX_CONTEXT_BYTES: "4000"
 
 jobs:
   review:
@@ -38,112 +33,18 @@ jobs:
       - name: Checkout the base branch
         uses: actions/checkout@v7
         with:
-          sparse-checkout: .github/prompts
+          sparse-checkout: |
+            scripts/ai_review.py
+            .claude/skills/review-pr
           persist-credentials: false
 
-      - name: Get the PR diff and its context
-        id: diff
+      - name: Review the pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
-        run: |
-          DIFF="$RUNNER_TEMP/pr.diff"
-          CONTEXT="$RUNNER_TEMP/pr_context.md"
-
-          # The API refuses diffs over 20,000 lines or 300 files; an empty one has nothing to review.
-          if ! gh pr diff "$PR_NUMBER" > "$DIFF" 2> "$RUNNER_TEMP/diff.err" || [ ! -s "$DIFF" ]; then
-            echo "diff_ok=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          DIFF_SIZE=$(wc -c < "$DIFF" | tr -d ' ')
-          if [ "$DIFF_SIZE" -gt "$AI_REVIEW_MAX_DIFF_BYTES" ]; then
-            head -c "$AI_REVIEW_MAX_DIFF_BYTES" "$DIFF" > "$RUNNER_TEMP/pr_cut.diff"
-            printf '\n> Diff cut to %s of %s bytes; the rest was not reviewed.\n' \
-              "$AI_REVIEW_MAX_DIFF_BYTES" "$DIFF_SIZE" >> "$RUNNER_TEMP/pr_cut.diff"
-            mv "$RUNNER_TEMP/pr_cut.diff" "$DIFF"
-          fi
-
-          # What the author says the change is for: the title, the description and the issues it closes. Each text
-          # is cut, and all of it is data for the model, written by whoever opened the PR or the issue.
-          gh pr view "$PR_NUMBER" --json title,body,closingIssuesReferences > "$RUNNER_TEMP/pr.json"
-          {
-            echo "PR title: $(jq -r '.title' "$RUNNER_TEMP/pr.json")"
-            echo
-            echo "PR description:"
-            jq -r '.body // ""' "$RUNNER_TEMP/pr.json" | head -c "$AI_REVIEW_MAX_CONTEXT_BYTES"
-            echo
-            ISSUES=$(jq -r '.closingIssuesReferences[:3][].url' "$RUNNER_TEMP/pr.json")
-            if [ -z "$ISSUES" ]; then
-              echo "No linked issue."
-            else
-              for ISSUE in $ISSUES; do
-                echo
-                echo "Linked issue $ISSUE:"
-                if ISSUE_TEXT=$(gh issue view "$ISSUE" --json title,body --jq '.title, (.body // "")') \
-                   && [ -n "$ISSUE_TEXT" ]; then
-                  printf '%s\n' "$ISSUE_TEXT" | head -c "$AI_REVIEW_MAX_CONTEXT_BYTES"
-                else
-                  echo "(issue text not available to this job)"
-                fi
-                echo
-              done
-            fi
-          } > "$CONTEXT"
-
-          {
-            echo "diff_ok=true"
-            echo "diff_size=$DIFF_SIZE"
-            echo "diff_file=$DIFF"
-            echo "context_file=$CONTEXT"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Run AI inference
-        id: inference
-        if: steps.diff.outputs.diff_ok == 'true'
-        uses: actions/ai-inference@v1
-        with:
-          prompt-file: ./.github/prompts/review-pr.prompt.yml
-          file_input: |
-            diff: ${{ steps.diff.outputs.diff_file }}
-            context: ${{ steps.diff.outputs.context_file }}
-          model: ${{ env.AI_REVIEW_MODEL }}
-          max-tokens: ${{ env.AI_REVIEW_MAX_TOKENS }}
-
-      - name: Post or update the review comment
-        if: steps.diff.outputs.diff_ok == 'false' || steps.inference.outputs.response-file != ''
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
-          RESPONSE_FILE: ${{ steps.inference.outputs.response-file }}
-          DIFF_OK: ${{ steps.diff.outputs.diff_ok }}
-          DIFF_SIZE: ${{ steps.diff.outputs.diff_size }}
-        run: |
-          MARKER='<!-- ai-review -->'
-          {
-            echo "$MARKER"
-            echo '## AI Review'
-            echo
-            echo '> Automated first pass from the `review-pr` skill. A maintainer verifies every finding.'
-            echo
-            if [ "$DIFF_OK" = true ]; then
-              cat "$RESPONSE_FILE"
-              echo
-              echo '---'
-              echo "*Diff size: ${DIFF_SIZE} bytes. Model: ${AI_REVIEW_MODEL} via GitHub Models.*"
-            else
-              echo 'GitHub returns no diff for this pull request (it is empty, or over 20,000 lines or 300 files), so it was not reviewed.'
-            fi
-          } > "$RUNNER_TEMP/review_body.md"
-
-          COMMENT_ID=$(gh api --paginate "repos/$GH_REPO/issues/$PR_NUMBER/comments" \
-            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- ai-review -->"))) | .id' \
-            | tail -n 1)
-
-          if [ -n "$COMMENT_ID" ]; then
-            gh api --method PATCH "repos/$GH_REPO/issues/comments/$COMMENT_ID" -F body=@"$RUNNER_TEMP/review_body.md"
-          else
-            gh api --method POST "repos/$GH_REPO/issues/$PR_NUMBER/comments" -F body=@"$RUNNER_TEMP/review_body.md"
-          fi
+          AI_REVIEW_API_KEY: ${{ secrets.AI_REVIEW_API_KEY }}
+          AI_REVIEW_BASE_URL: ${{ vars.AI_REVIEW_BASE_URL }}
+          AI_REVIEW_MODEL: ${{ vars.AI_REVIEW_MODEL }}
+          AI_REVIEW_EXTRA_BODY: ${{ vars.AI_REVIEW_EXTRA_BODY }}
+        run: python3 scripts/ai_review.py

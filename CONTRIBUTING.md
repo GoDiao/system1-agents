@@ -61,11 +61,17 @@ week for Python packages and one for the GitHub Actions.
 
 ## AI review
 
-`.github/workflows/ai-review.yml` posts one first-pass review comment on each non-draft pull request and edits it on
-every push. It reads the diff (cut at 40 KB), the PR description and the issues the PR closes (`Closes #N`), and checks the change against them; it cannot run tests, and skips Dependabot and draft pull requests; a maintainer verifies every finding. A
-maintainer, member or collaborator can ask for a fresh run by commenting `@ai-review`. The review criteria live in
-`.claude/skills/review-pr/SKILL.md`, which Claude Code uses locally, and in `.github/prompts/review-pr.prompt.yml`,
-the copy CI sends to the model; change both together. The workflow runs from the base branch, so a change to it takes
+`.github/workflows/ai-review.yml` runs `scripts/ai_review.py` on each non-draft pull request (Dependabot's excepted) and
+posts one first-pass review comment, which it edits on every push or edit of the PR. The script sends
+`.claude/skills/review-pr/SKILL.md` as the system prompt, with the diff (cut at 60 KB), the PR description and the
+issues the PR closes (`Closes #N`), and posts what the model answers; it cannot run tests, so a maintainer verifies
+every finding. An owner, member or collaborator can ask for a fresh run by commenting `@ai-review`. If the model does
+not answer, the comment says the PR was not reviewed.
+
+Set it up in the repository settings. The secret `AI_REVIEW_API_KEY` turns it on; without it the job does nothing. The
+variables `AI_REVIEW_BASE_URL` (any OpenAI-compatible endpoint, default `https://open.bigmodel.cn/api/paas/v4`) and
+`AI_REVIEW_MODEL` (default `glm-4.7-flash`) pick the model, and `AI_REVIEW_EXTRA_BODY` is a JSON object merged into the
+request. The diff and the PR text go to that provider. The workflow runs from the base branch, so a change to it takes
 effect after it merges.
 
 ## Extras
