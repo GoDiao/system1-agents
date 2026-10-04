@@ -1,8 +1,11 @@
 name: AI PR Review
 
+# pull_request_target, so that pull requests from forks (the usual way in here) get the token this job needs.
+# Nothing from the pull request is checked out or run: the job reads the diff through the API, the prompt comes
+# from the base branch, and the model's answer reaches the comment as a file, never as part of a script.
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
   issue_comment:
     types: [created]
 
@@ -11,69 +14,92 @@ permissions:
   pull-requests: write
   models: read
 
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+env:
+  AI_REVIEW_MODEL: gpt-4.1
+  AI_REVIEW_MAX_TOKENS: "3000"
+  AI_REVIEW_MAX_DIFF_BYTES: "40000"
+
 jobs:
   review:
     if: |
-      github.event_name == 'pull_request' ||
+      (github.event_name == 'pull_request_target' && !github.event.pull_request.draft) ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request != null &&
-       contains(github.event.comment.body, '@ai-review'))
+       contains(github.event.comment.body, '@ai-review') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - name: Checkout the base branch
+        uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          sparse-checkout: .github/prompts
+          persist-credentials: false
 
       - name: Get PR diff
         id: diff
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            PR_NUMBER="${{ github.event.pull_request.number }}"
-          else
-            PR_NUMBER="${{ github.event.issue.number }}"
-          fi
-          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          gh pr diff "$PR_NUMBER" > "$RUNNER_TEMP/pr.diff"
 
-          gh pr diff $PR_NUMBER > /tmp/pr.diff
-
-          DIFF_SIZE=$(wc -c < /tmp/pr.diff)
-          if [ "$DIFF_SIZE" -gt 40000 ]; then
-            head -c 40000 /tmp/pr.diff > /tmp/pr_truncated.diff
-            echo "" >> /tmp/pr_truncated.diff
-            echo "> ⚠️ Diff truncated to 40K characters (original: ${DIFF_SIZE} bytes). Review may be incomplete." >> /tmp/pr_truncated.diff
-            mv /tmp/pr_truncated.diff /tmp/pr.diff
+          DIFF_SIZE=$(wc -c < "$RUNNER_TEMP/pr.diff")
+          if [ "$DIFF_SIZE" -gt "$AI_REVIEW_MAX_DIFF_BYTES" ]; then
+            head -c "$AI_REVIEW_MAX_DIFF_BYTES" "$RUNNER_TEMP/pr.diff" > "$RUNNER_TEMP/pr_cut.diff"
+            printf '\n> Diff cut to %s of %s bytes; the rest was not reviewed.\n' \
+              "$AI_REVIEW_MAX_DIFF_BYTES" "$DIFF_SIZE" >> "$RUNNER_TEMP/pr_cut.diff"
+            mv "$RUNNER_TEMP/pr_cut.diff" "$RUNNER_TEMP/pr.diff"
           fi
 
-          echo "diff_size=$DIFF_SIZE" >> $GITHUB_OUTPUT
+          {
+            echo "diff_size=$DIFF_SIZE"
+            echo "diff_file=$RUNNER_TEMP/pr.diff"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Run AI inference
         id: inference
+        if: steps.diff.outputs.diff_size != '0'
         uses: actions/ai-inference@v1
         with:
           prompt-file: ./.github/prompts/review-pr.prompt.yml
           file_input: |
-            diff: /tmp/pr.diff
-          model: gpt-4.1
-          max-tokens: 1500
+            diff: ${{ steps.diff.outputs.diff_file }}
+          model: ${{ env.AI_REVIEW_MODEL }}
+          max-tokens: ${{ env.AI_REVIEW_MAX_TOKENS }}
 
-      - name: Post review comment
-        if: steps.inference.outputs.response != ''
+      - name: Post or update the review comment
+        if: steps.inference.outputs.response-file != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ steps.diff.outputs.pr_number }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          RESPONSE_FILE: ${{ steps.inference.outputs.response-file }}
+          DIFF_SIZE: ${{ steps.diff.outputs.diff_size }}
         run: |
-          cat > /tmp/review_body.md << 'EOF'
-          ## 🤖 AI Review
+          MARKER='<!-- ai-review -->'
+          {
+            echo "$MARKER"
+            echo '## AI Review'
+            echo
+            echo '> Automated first pass from the `review-pr` skill. A maintainer verifies every finding.'
+            echo
+            cat "$RESPONSE_FILE"
+            echo
+            echo '---'
+            echo "*Diff size: ${DIFF_SIZE} bytes. Model: ${AI_REVIEW_MODEL} via GitHub Models.*"
+          } > "$RUNNER_TEMP/review_body.md"
 
-          > Generated by `review-pr` skill. This is an automated first-pass review — a human maintainer should verify all findings.
+          COMMENT_ID=$(gh api --paginate "repos/$GH_REPO/issues/$PR_NUMBER/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- ai-review -->"))) | .id' \
+            | tail -n 1)
 
-          ${{ steps.inference.outputs.response }}
-
-          ---
-          *Diff size: ${{ steps.diff.outputs.diff_size }} bytes. Model: gpt-4.1 via GitHub Models (free tier).*
-          EOF
-
-          gh pr comment $PR_NUMBER --body-file /tmp/review_body.md
+          if [ -n "$COMMENT_ID" ]; then
+            gh api --method PATCH "repos/$GH_REPO/issues/comments/$COMMENT_ID" -F body=@"$RUNNER_TEMP/review_body.md"
+          else
+            gh api --method POST "repos/$GH_REPO/issues/$PR_NUMBER/comments" -F body=@"$RUNNER_TEMP/review_body.md"
+          fi

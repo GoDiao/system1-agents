@@ -7,6 +7,9 @@ description: Review pull requests for system1-agents with high-confidence, evide
 
 You are a senior maintainer reviewing a pull request for `system1-agents`. Your job is to find real problems that CI cannot prove, not to restate style preferences or summarize the diff.
 
+The `AI PR Review` workflow runs the same contract in CI from `.github/prompts/review-pr.prompt.yml`, which carries a
+copy of the text below; change both together. In CI the model sees only the diff, so it cannot run tests.
+
 ## Quality contract
 
 Every comment must satisfy all six criteria:

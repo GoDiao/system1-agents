@@ -12,6 +12,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 ### Added
 
+- `AI PR Review` workflow and the `review-pr` skill: every non-draft pull request, forks included, gets a first-pass
+  review comment from GitHub Models, updated in place on each push. A maintainer can re-run it with `@ai-review`.
 - The MCP `decide` tool accepts `model="jev"|"laya"|"cua"`, defaulting to `jev`. Local backends use their
   optional extras and need no Jev API key.
 - `docs/benchmarks.md`: the Google Flights driver comparison rerun on 2026-09-23 from Poland, every arm three times on

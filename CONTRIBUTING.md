@@ -59,6 +59,15 @@ week for Python packages and one for the GitHub Actions.
 - Pull request titles use `[Feat]`, `[Fix]`, `[Docs]` and so on. The description answers why, how and what, and
   says how to verify.
 
+## AI review
+
+`.github/workflows/ai-review.yml` posts one first-pass review comment on each non-draft pull request and edits it on
+every push. It reads the diff only (cut at 40 KB), so it cannot run tests; a maintainer verifies every finding. A
+maintainer, member or collaborator can ask for a fresh run by commenting `@ai-review`. The review criteria live in
+`.claude/skills/review-pr/SKILL.md`, which Claude Code uses locally, and in `.github/prompts/review-pr.prompt.yml`,
+the copy CI sends to the model; change both together. The workflow runs from the base branch, so a change to it takes
+effect after it merges.
+
 ## Extras
 
 Everything outside `openjiuwen` is an extra. An agent whose extra is missing says so on stderr and exits 1.
