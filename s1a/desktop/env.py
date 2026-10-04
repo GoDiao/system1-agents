@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any, Callable
 
 from s1a.desktop.driver import Driver, DriverError, Element, Snapshot, Window
@@ -114,6 +115,7 @@ class WindowEnv:
     def _update_candidates(self) -> None:
         self._keys = {}
         self._text_keys = {}
+        locator_counts = Counter(self._locator(e) for e in self._require_snapshot().elements)
         for element in self._require_snapshot().elements:
             if clickable(element):
                 key = f"click:{element.label or element.role}"
@@ -122,10 +124,11 @@ class WindowEnv:
                 continue
             locator = self._locator(element)
             if locator == self._text_field:
-                self._typed = element.value == self._verified_value
+                self._typed = locator_counts[locator] == 1 and element.value == self._verified_value
             if (
                 self._text
                 and not self._typed
+                and locator_counts[locator] == 1
                 and (not self._text_target or self._text_target in (element.label, element.identifier))
                 and (self._text_field is None or locator == self._text_field)
             ):

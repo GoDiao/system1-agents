@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import tempfile
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from unittest import IsolatedAsyncioTestCase
@@ -77,6 +78,47 @@ class FakeDocument:
 
 
 class TestDocumentActions(IsolatedAsyncioTestCase):
+    async def test_ambiguous_text_fields_are_not_offered_or_written(self) -> None:
+        original = self.fake.window_state
+        for identifier, enabled in (("", True), ("shared", True), ("", False)):
+            with self.subTest(identifier=identifier, enabled=enabled):
+
+                async def duplicate_fields(window: Window) -> Snapshot:
+                    snapshot = await original(window)
+                    field = replace(snapshot.elements[0], index=0, identifier=identifier)
+                    duplicate = replace(field, index=1, token="other", enabled=enabled)
+                    return replace(snapshot, elements=(field, duplicate, *snapshot.elements[1:]))
+
+                with patch.object(self.fake, "window_state", side_effect=duplicate_fields):
+                    env = self.env()
+                    await env.reset()
+                    key = f"type:{identifier or 'Body'}"
+                    for candidate in (key, f"{key}#1"):
+                        with self.assertRaises(KeyError):
+                            await env.step(candidate)
+                    self.assertFalse(any(k.startswith("type:") for k in await env.candidates()))
+                    self.assertTrue((await env.observe())["text_pending"])
+                    self.assertEqual((self.fake.text, self.fake.actions), ("", []))
+
+    async def test_same_label_with_distinct_identifiers_keeps_readback_identity(self) -> None:
+        original = self.fake.window_state
+
+        async def distinct_fields(window: Window) -> Snapshot:
+            snapshot = await original(window)
+            field = replace(snapshot.elements[0], identifier="body")
+            other = replace(field, index=4, identifier="other", value="untouched", token="other")
+            return replace(snapshot, elements=(field, other, *snapshot.elements[1:]))
+
+        with patch.object(self.fake, "window_state", side_effect=distinct_fields):
+            env = self.env()
+            await env.reset()
+            self.assertIn("type:body", await env.candidates())
+            self.assertIn("type:other", await env.candidates())
+            await env.step("type:body")
+            self.assertEqual(self.fake.text, "hello")
+            self.assertFalse((await env.observe())["text_pending"])
+            self.assertEqual((await env.observe())["elements"][1]["value"], "untouched")
+
     async def test_saved_status_requires_verified_text_without_file_check(self) -> None:
         args = series.parser(desktop.SPEC).parse_args(
             ["--model", "rule", "--rethink", "off", "--episodes", "1"]
