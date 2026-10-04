@@ -182,6 +182,36 @@ class TestFromEnv(TestCase):
         self.assertIn("system_one", str(caught.exception))
         self.assertIn("laya 0.3.0", str(caught.exception))
 
+    def test_a_laya_without_package_metadata_is_named_unknown(self) -> None:
+        fake_laya = SimpleNamespace(load=lambda *a, **k: SimpleNamespace(cfg={}))
+        with (
+            patch.dict(sys.modules, {"laya": fake_laya}),
+            patch.dict(os.environ, {"LAYA_SUBFOLDER": ""}),
+            patch.object(laya_module.metadata, "version", side_effect=laya_module.metadata.PackageNotFoundError),
+        ):
+            with self.assertRaises(BaseError) as caught:
+                LayaModel.from_env()
+        self.assertIn("laya unknown", str(caught.exception))
+
+    def test_mps_stays_in_fp32_unless_the_laya_variable_is_set(self) -> None:
+        def from_env(env: dict[str, str]) -> Any:
+            agent = FakeLayaAgent()
+            agent.mps_amp_min_rows = 5  # what laya sets from 0.3.10: fp16 from five questions on MPS
+            fake_laya = SimpleNamespace(load=lambda *a, **k: agent)
+            env = {"LAYA_SUBFOLDER": "", "LAYA_MPS_AMP_MIN_ROWS": "", **env}
+            with patch.dict(sys.modules, {"laya": fake_laya}), patch.dict(os.environ, env):
+                return LayaModel.from_env()._agent
+
+        self.assertEqual(from_env({}).mps_amp_min_rows, laya_module.LAYA_MPS_FP32_ROWS)
+        self.assertEqual(from_env({"LAYA_MPS_AMP_MIN_ROWS": "5"}).mps_amp_min_rows, 5)
+
+    def test_a_laya_before_the_mps_gate_gets_no_such_attribute(self) -> None:
+        agent = FakeLayaAgent()  # laya 0.3.9 has no mps_amp_min_rows
+        with patch.dict(sys.modules, {"laya": SimpleNamespace(load=lambda *a, **k: agent)}):
+            with patch.dict(os.environ, {"LAYA_SUBFOLDER": "", "LAYA_MPS_AMP_MIN_ROWS": ""}):
+                LayaModel.from_env()
+        self.assertFalse(hasattr(agent, "mps_amp_min_rows"))
+
     def test_the_env_names_the_checkpoint_and_overrides_the_window(self) -> None:
         loads: list[tuple[Any, ...]] = []
 

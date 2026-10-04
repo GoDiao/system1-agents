@@ -32,6 +32,7 @@ Variables can be exported in your shell or placed in a `.env` file at the root o
 | `LAYA_DEVICE` | `laya` model | `(library default)` | PyTorch device for Laya model evaluation; passes None so the library selects CUDA, MPS, or CPU. |
 | `LAYA_MAX_LEN` | `laya` model | `(checkpoint default)` | Maximum token sequence length for Laya state representation; overrides checkpoint window only when set. |
 | `LAYA_HEAD_MAX_LEN` | `laya` model | `(checkpoint default)` | Maximum token sequence length for Laya decision head options; overrides checkpoint window only when set. |
+| `LAYA_MPS_AMP_MIN_ROWS` | `laya` model | *(unset: fp32)* | Laya's own variable: on MPS, requests with at least this many questions run in fp16. Unset, `--model laya` keeps every request in fp32, as on CPU; `5` is Laya's default. fp16 moves the probabilities and can flip a close decision. |
 | `LAYA_SERVED_URL` | `laya-served` model | *(unset, required)* | Base URL of a served Laya: the system1-omni worker (`http://127.0.0.1:8000`), its `omni-jev` frontend (`:8080`) or plain laya-serve. |
 | `LAYA_SERVED_MODEL` | `laya-served` model | `english` | Name of the served checkpoint to ask: `english`, `multilingual` or `typed-decisions`. A name the server does not know raises instead of being routed by language. |
 | `LAYA_SERVED_API_KEY` | `laya-served` model | *(unset)* | Bearer token, the server's `LAYA_API_KEY` when it sets one. |

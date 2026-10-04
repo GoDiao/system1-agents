@@ -21,6 +21,7 @@ from s1a.decision_models.types import ChoiceQuestion, Json, Observation, Questio
 
 LAYA_DEFAULT_MODEL = "convaiinnovations/laya"
 LAYA_DEFAULT_MAX_LEN = 512  # the window Laya assumes when a checkpoint config names none
+LAYA_MPS_FP32_ROWS = 10**9  # no request has this many questions, so Laya never switches to fp16 on MPS
 
 
 def laya_question(question: Question) -> Json:
@@ -98,7 +99,8 @@ class LayaModel(DecisionModel):
     @classmethod
     def from_env(cls) -> "LayaModel":
         """``LAYA_MODEL`` (a hub id or a path), ``LAYA_SUBFOLDER``, ``LAYA_DEVICE``; ``LAYA_MAX_LEN`` and
-        ``LAYA_HEAD_MAX_LEN`` override the checkpoint's window."""
+        ``LAYA_HEAD_MAX_LEN`` override the checkpoint's window. On MPS the model answers in fp32 whatever the
+        number of questions, unless ``LAYA_MPS_AMP_MIN_ROWS`` (Laya's own variable) is set."""
         try:
             import laya
         except ImportError as exc:
@@ -121,6 +123,10 @@ class LayaModel(DecisionModel):
                     "the s1a laya model needs that method"
                 ),
             )
+        # From 0.3.10 Laya runs a request of five or more questions in fp16 on MPS. That moves the answers, enough
+        # to flip a close decision, so one browser episode would mix both precisions.
+        if not os.getenv("LAYA_MPS_AMP_MIN_ROWS") and hasattr(agent, "mps_amp_min_rows"):
+            agent.mps_amp_min_rows = LAYA_MPS_FP32_ROWS
         for key, variable in (("max_len", "LAYA_MAX_LEN"), ("head_max_len", "LAYA_HEAD_MAX_LEN")):
             value = os.getenv(variable)
             if value:
