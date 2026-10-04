@@ -12,10 +12,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 ### Added
 
-- `AI PR Review` workflow, `scripts/ai_review.py` and the `review-pr` skill: every non-draft pull request, forks
-  included, gets a first-pass review comment, checked against the PR description and the issues it closes and edited
-  in place on each push. The model is any OpenAI-compatible endpoint (`glm-4.7-flash` by default) and the job is off
-  until the secret `AI_REVIEW_API_KEY` is set. A maintainer can re-run it with `@ai-review`.
+- `.coderabbit.yaml` and the `review-pr` skill: CodeRabbit reviews every non-draft pull request, forks included, once
+  an owner installs the CodeRabbit GitHub App, against `.claude/skills/review-pr/SKILL.md` and the linked issues.
+  Maintainers can run the same skill by hand.
 - The MCP `decide` tool accepts `model="jev"|"laya"|"cua"`, defaulting to `jev`. Local backends use their
   optional extras and need no Jev API key.
 - `docs/benchmarks.md`: the Google Flights driver comparison rerun on 2026-09-23 from Poland, every arm three times on

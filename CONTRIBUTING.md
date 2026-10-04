@@ -61,18 +61,12 @@ week for Python packages and one for the GitHub Actions.
 
 ## AI review
 
-`.github/workflows/ai-review.yml` runs `scripts/ai_review.py` on each non-draft pull request (Dependabot's excepted) and
-posts one first-pass review comment, which it edits on every push or edit of the PR. The script sends
-`.claude/skills/review-pr/SKILL.md` as the system prompt, with the diff (cut at 60 KB), the PR description and the
-issues the PR closes (`Closes #N`), and posts what the model answers; it cannot run tests, so a maintainer verifies
-every finding. An owner, member or collaborator can ask for a fresh run by commenting `@ai-review`. If the model does
-not answer, the comment says the PR was not reviewed.
-
-Set it up in the repository settings. The secret `AI_REVIEW_API_KEY` turns it on; without it the job does nothing. The
-variables `AI_REVIEW_BASE_URL` (any OpenAI-compatible endpoint, default `https://open.bigmodel.cn/api/paas/v4`) and
-`AI_REVIEW_MODEL` (default `glm-4.7-flash`) pick the model, and `AI_REVIEW_EXTRA_BODY` is a JSON object merged into the
-request. The diff and the PR text go to that provider. The workflow runs from the base branch, so a change to it takes
-effect after it merges.
+CodeRabbit reviews each non-draft pull request when it opens and again on every push (Dependabot's excepted), and checks
+the change against the issues it closes (`Closes #N`). It needs the CodeRabbit GitHub App installed on the repository by
+an owner; reviews of public repositories are free. `.coderabbit.yaml` holds its settings and the per-path focus, and it
+reads `.claude/skills/review-pr/SKILL.md` and this file as the review criteria, so the criteria live in one place.
+CodeRabbit cannot run tests; a maintainer verifies every finding. To review by hand with the same criteria, ask Claude
+Code to use the `review-pr` skill on a pull request or a branch.
 
 ## Extras
 

@@ -7,8 +7,9 @@ description: Review pull requests for system1-agents with high-confidence, evide
 
 You are a senior maintainer reviewing a pull request for `system1-agents`. Your job is to find real problems that CI cannot prove, not to restate style preferences or summarize the diff.
 
-The `AI PR Review` workflow sends this file to the model as its system prompt, so what it says is what CI asks for.
-In CI the model sees the diff, the PR title and description, and the issues the PR closes, and cannot run tests.
+CodeRabbit reads this file as review guidelines (`.coderabbit.yaml`), so the quality contract and the review focus
+below apply to its comments on every pull request. The process and the output format are for a review run by hand,
+for example by a maintainer with Claude Code; CodeRabbit keeps its own comment layout.
 
 ## Quality contract
 
