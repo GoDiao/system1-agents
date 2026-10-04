@@ -205,6 +205,17 @@ class TestFromEnv(TestCase):
         self.assertEqual(from_env({}).mps_amp_min_rows, laya_module.LAYA_MPS_FP32_ROWS)
         self.assertEqual(from_env({"LAYA_MPS_AMP_MIN_ROWS": "5"}).mps_amp_min_rows, 5)
 
+    def test_a_laya_variable_that_is_not_a_number_is_a_config_error(self) -> None:
+        loads: list[int] = []
+        fake_laya = SimpleNamespace(load=lambda *a, **k: loads.append(1))
+        env = {"LAYA_SUBFOLDER": "", "LAYA_MPS_AMP_MIN_ROWS": "off"}  # laya would read this as its default, fp16
+        with patch.dict(sys.modules, {"laya": fake_laya}), patch.dict(os.environ, env):
+            with self.assertRaises(BaseError) as caught:
+                LayaModel.from_env()
+        self.assertEqual(caught.exception.status, StatusCode.MODEL_SERVICE_CONFIG_ERROR)
+        self.assertIn("LAYA_MPS_AMP_MIN_ROWS", str(caught.exception))
+        self.assertEqual(loads, [])  # before the checkpoint loads
+
     def test_a_laya_before_the_mps_gate_gets_no_such_attribute(self) -> None:
         agent = FakeLayaAgent()  # laya 0.3.9 has no mps_amp_min_rows
         with patch.dict(sys.modules, {"laya": SimpleNamespace(load=lambda *a, **k: agent)}):

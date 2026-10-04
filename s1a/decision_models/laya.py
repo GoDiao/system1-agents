@@ -108,6 +108,16 @@ class LayaModel(DecisionModel):
                 StatusCode.MODEL_SERVICE_CONFIG_ERROR,
                 error_msg="--model laya needs the laya extra: uv sync --extra laya",
             ) from exc
+        mps_rows = os.getenv("LAYA_MPS_AMP_MIN_ROWS")
+        if mps_rows:
+            try:
+                int(mps_rows)
+            except ValueError as exc:  # Laya would fall back to its default of 5 and run those requests in fp16
+                raise build_error(
+                    StatusCode.MODEL_SERVICE_CONFIG_ERROR,
+                    cause=exc,
+                    error_msg=f"LAYA_MPS_AMP_MIN_ROWS must be a whole number, not {mps_rows!r}; unset it to keep fp32",
+                ) from exc
         model = os.getenv("LAYA_MODEL") or LAYA_DEFAULT_MODEL
         subfolder = os.getenv("LAYA_SUBFOLDER") or None
         agent = laya.load(model, device=os.getenv("LAYA_DEVICE") or None, subfolder=subfolder)
@@ -125,7 +135,7 @@ class LayaModel(DecisionModel):
             )
         # From 0.3.10 Laya runs a request of five or more questions in fp16 on MPS. That moves the answers, enough
         # to flip a close decision, so one browser episode would mix both precisions.
-        if not os.getenv("LAYA_MPS_AMP_MIN_ROWS") and hasattr(agent, "mps_amp_min_rows"):
+        if not mps_rows and hasattr(agent, "mps_amp_min_rows"):
             agent.mps_amp_min_rows = LAYA_MPS_FP32_ROWS
         for key, variable in (("max_len", "LAYA_MAX_LEN"), ("head_max_len", "LAYA_HEAD_MAX_LEN")):
             value = os.getenv(variable)
