@@ -62,7 +62,7 @@ week for Python packages and one for the GitHub Actions.
 ## AI review
 
 `.github/workflows/ai-review.yml` posts one first-pass review comment on each non-draft pull request and edits it on
-every push. It reads the diff only (cut at 40 KB), so it cannot run tests; a maintainer verifies every finding. A
+every push. It reads the diff (cut at 40 KB), the PR description and the issues the PR closes (`Closes #N`), and checks the change against them; it cannot run tests, and skips Dependabot and draft pull requests; a maintainer verifies every finding. A
 maintainer, member or collaborator can ask for a fresh run by commenting `@ai-review`. The review criteria live in
 `.claude/skills/review-pr/SKILL.md`, which Claude Code uses locally, and in `.github/prompts/review-pr.prompt.yml`,
 the copy CI sends to the model; change both together. The workflow runs from the base branch, so a change to it takes
