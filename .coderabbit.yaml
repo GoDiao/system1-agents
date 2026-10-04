@@ -36,6 +36,10 @@ reviews:
       instructions: |
         Benchmark fairness: the same seeds, inputs and budget on every arm, no caching that favors one model,
         and result aggregation that cannot drop a failed run. A number in a doc must match the record it cites.
+    - path: "docs/**"
+      instructions: |
+        A number in a doc must match the record it cites (the archives under docs/results/ and the files under
+        evals/), and a flag, an environment variable or a command in a doc must match what the code does now.
     - path: "tests/**"
       instructions: |
         Edge cases, error paths and model-unavailable scenarios. A test that cannot fail, or that needs a key
