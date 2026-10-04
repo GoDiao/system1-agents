@@ -12,6 +12,7 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
+    auto_pause_after_reviewed_commits: 0
     ignore_usernames:
       - dependabot[bot]
   path_filters:
@@ -40,8 +41,9 @@ reviews:
         script, secrets handed to steps that do not need them, and permissions wider than the job uses.
     - path: "pyproject.toml"
       instructions: |
-        A dependency change needs uv.lock updated, the matching extra listed in EXTRAS in s1a/run.py, and the
-        table in CONTRIBUTING.md to agree.
+        A new or changed extra must agree with the extras table in CONTRIBUTING.md, and a new agent's extra is also
+        listed in EXTRAS in s1a/run.py (the other extras, such as laya, cua, report and dev, are not agents and
+        are not listed there). CI checks uv.lock and the review does not see it, so do not comment on the lock.
 
 knowledge_base:
   code_guidelines:
