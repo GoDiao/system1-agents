@@ -77,6 +77,56 @@ class FakeDocument:
 
 
 class TestDocumentActions(IsolatedAsyncioTestCase):
+    async def test_saved_status_requires_verified_text_without_file_check(self) -> None:
+        args = series.parser(desktop.SPEC).parse_args(
+            ["--model", "rule", "--rethink", "off", "--episodes", "1"]
+            + ["--app", "Document", "--goal", "write and save", "--expect", "Saved", "--text", "hello", "--execute"]
+        )
+        with patch.object(desktop, "driver_from_env", return_value=self.fake):
+            env = desktop.make_series(args).env_for(0)
+        await env.reset()
+        await env.step("click:Save")
+        self.assertEqual((env.done, env.score), (False, 0.0))
+        self.assertTrue((await env.observe())["text_pending"])
+        self.assertIn("type:Body", await env.candidates())
+
+        await env.step("type:Body")
+        await env.step("click:Save")
+        self.assertEqual((env.done, env.score), (True, 1.0))
+        self.fake.text = "changed by app"
+        await env.step("click:Save")
+        self.assertEqual((env.done, env.score), (False, 0.0))
+        self.assertTrue((await env.observe())["text_pending"])
+
+    async def test_insert_accepts_replacing_selected_payload_with_identical_text(self) -> None:
+        self.fake.text = "hello world"
+
+        async def replace_selection(window: Window, token: str, text: str) -> dict:
+            self.fake._check(window, token)
+            self.fake.text = text + self.fake.text[len("hello") :]
+            return {"effect": "confirmed"}
+
+        self.fake.type_text = replace_selection
+        env = self.env()
+        await env.reset()
+        await env.step("type:Body")
+        self.assertEqual(self.fake.text, "hello world")
+        self.assertFalse((await env.observe())["text_pending"])
+        self.assertEqual((await env.observe())["presses"], ["type:Body"])
+        self.assertNotIn("type:Body", await env.candidates())
+
+    async def test_unchanged_insert_requires_driver_confirmation_and_matching_text(self) -> None:
+        for value, effect in (("hello world", "unverifiable"), ("other text", "confirmed")):
+            with self.subTest(value=value, effect=effect):
+                self.fake.text = value
+                self.fake.type_text = AsyncMock(return_value={"effect": effect})
+                env = self.env()
+                await env.reset()
+                with self.assertRaisesRegex(DriverError, "text verification failed"):
+                    await env.step("type:Body")
+                self.assertTrue((await env.observe())["text_pending"])
+                self.assertEqual((await env.observe())["presses"], [])
+
     async def test_claimed_success_with_incomplete_text_is_not_recorded_as_complete(self) -> None:
         async def truncated(window: Window, token: str, text: str) -> dict:
             self.fake.text = text[:2]

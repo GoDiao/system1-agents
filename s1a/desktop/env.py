@@ -201,6 +201,9 @@ class WindowEnv:
             verified = value == text
             if value is not None and self._text_mode == "insert" and element.value:
                 verified |= value.count(text) > element.value.count(text)
+                # Replacing a selected occurrence with identical text leaves the value unchanged.
+                # The driver must still confirm the action, and a fresh snapshot must contain it.
+                verified |= value == element.value and text in value
             if not verified:
                 raise DriverError("text verification failed: current field does not contain the requested content")
             self._verified_value = current[0].value
@@ -213,10 +216,12 @@ class WindowEnv:
 
     @property
     def done(self) -> bool:
-        return self._ended is not None or (self._snapshot is not None and self._done_when(self._snapshot))
+        return self._ended is not None or self.score == 1.0
 
     @property
     def score(self) -> float:
+        if self._text and not self._typed:
+            return 0.0
         return 1.0 if self._snapshot is not None and self._done_when(self._snapshot) else 0.0
 
     @staticmethod
