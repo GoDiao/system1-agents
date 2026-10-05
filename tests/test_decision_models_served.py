@@ -608,6 +608,22 @@ class ConfigTests(IsolatedAsyncioTestCase):
                 ServedLayaModel.from_env()
             self.assertEqual(caught.exception.status, StatusCode.MODEL_SERVICE_CONFIG_ERROR)
 
+    async def test_a_timeout_that_is_not_finite_is_a_configuration_error(self) -> None:
+        for raw in ("nan", "inf", "-inf", "1e9999", "0", "-1"):  # none of these can bound a request
+            with (
+                self.env(LAYA_SERVED_URL="http://h", LAYA_SERVED_TIMEOUT_S=raw),
+                self.assertRaises(BaseError) as caught,
+            ):
+                ServedLayaModel.from_env()
+            self.assertEqual(caught.exception.status, StatusCode.MODEL_SERVICE_CONFIG_ERROR, raw)
+            self.assertIn("LAYA_SERVED_TIMEOUT_S", str(caught.exception), raw)
+
+    async def test_a_client_built_with_a_timeout_that_is_not_finite_is_refused(self) -> None:
+        for value in (float("nan"), float("inf"), 0.0, -1.0):
+            with self.assertRaises(BaseError) as caught:
+                ServedLayaClient(url="http://h", timeout_s=value)
+            self.assertEqual(caught.exception.status, StatusCode.MODEL_SERVICE_CONFIG_ERROR)
+
     async def test_no_cloud_key_is_read(self) -> None:
         with (
             self.env(LAYA_SERVED_URL="http://h"),

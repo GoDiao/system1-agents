@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 import time
 import uuid
@@ -99,6 +100,11 @@ class ServedLayaClient:
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
+        if not math.isfinite(timeout_s) or timeout_s <= 0:
+            raise build_error(
+                StatusCode.MODEL_SERVICE_CONFIG_ERROR,
+                error_msg=f"timeout_s must be a finite number above 0, not {timeout_s!r}",
+            )
         self.url = url.rstrip("/")
         self._timeout_s = timeout_s
         self._clock = clock
@@ -401,10 +407,10 @@ class ServedLayaModel(DecisionModel):
                 cause=exc,
                 error_msg="LAYA_SERVED_TIMEOUT_S must be a number and LAYA_SERVED_MAX_LEN an integer",
             ) from exc
-        if timeout_s <= 0 or max_len <= 0:
+        if not math.isfinite(timeout_s) or timeout_s <= 0 or max_len <= 0:
             raise build_error(
                 StatusCode.MODEL_SERVICE_CONFIG_ERROR,
-                error_msg="LAYA_SERVED_TIMEOUT_S and LAYA_SERVED_MAX_LEN must be positive",
+                error_msg="LAYA_SERVED_TIMEOUT_S must be a finite number above 0 and LAYA_SERVED_MAX_LEN above 0",
             )
         client = ServedLayaClient(url=url, api_key=os.getenv("LAYA_SERVED_API_KEY") or None, timeout_s=timeout_s)
         return cls(client, model=os.getenv("LAYA_SERVED_MODEL") or DEFAULT_SERVED_MODEL, max_len=max_len)

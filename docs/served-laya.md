@@ -104,12 +104,13 @@ problem+json and fall back to `detail`; read identity from `served_by` when pres
   A worker that loads another checkpoint while serving prepares it inside that request and holds every
   other request until it is ready, which takes longer than the default deadline. This client names its
   model in every request, so it causes such a load only when `LAYA_SERVED_MODEL` is not the model the
-  worker started with; another client of the same worker can cause one too.
+  worker started with; another client of the same worker can cause one too. Decisions fail with the timeout
+  error meanwhile and answer again once the worker is ready; see "Run it" for how to load such a checkpoint
+  ahead.
 
   laya-serve does not reject a `model` it does not know: it routes the request by the state's language.
   A mistyped `LAYA_SERVED_MODEL` would then be answered by whichever checkpoint suits each state, so the
-  client fails with a configuration error when the response's `routing.reason` is not the explicit name. Decisions fail with the timeout error meanwhile
-  and answer again once the worker is ready; see "Run it" for how to load such a checkpoint ahead.
+  client fails with a configuration error when the response's `routing.reason` is not the explicit name.
 
 - **Timing.** The record keeps the client round trip per decision and, when present, `Server-Timing`'s
   `queue` and `infer`, so network, queueing and model time separate. Today's servers send no
