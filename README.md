@@ -1,4 +1,9 @@
-# system1-agents
+<h1 align="center" id="system1-agents">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logos/system1-agents-dark.png">
+    <img src="docs/assets/logos/system1-agents.png" alt="System1-Agents" width="760">
+  </picture>
+</h1>
 
 > [!NOTE]
 > **Give your agents a System 1 decision model. Start from a prebuilt agent or build your own.**
