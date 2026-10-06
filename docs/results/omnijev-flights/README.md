@@ -75,3 +75,22 @@ No screenshots exist for the 2026-09-29 runs and the 2026-09-30 morning runs: th
 
 The browser was signed out ("Sign in" shows on every screenshot); no account or personal data is in the records.
 Screenshots and page text are Google Flights' pages, kept as evaluation evidence only.
+
+## Recorded runs on CPU (2026-10-06, at 6d9c015)
+
+OmniJev-0.8B v1.1 in process on Windows 11 CPU (no GPU), OmniJev clone at 14dbec4, prompt `full`, one frame after
+every browser call (`evals/replay/cast.py`), `s1a run flights --model omnijev --timeout 1200`.
+
+| folder | browser | what happened |
+|---|---|---|
+| `2026-10-06-cpu/live-run-0.8b/` | Chrome 153 on its own profile over CDP, signed out, Google's consent refused once | two decisions, 136 s and 128 s, both CLICK "Change ticket type. Round trip"; openJiuwen's task deadline ended the run at 301 s (`task_deadline_exhausted`) |
+| `2026-10-06-cpu/live-run-0.8b-consent-page/` | `@playwright/mcp`'s own isolated, fresh profile | started on Google's consent page; CLICK "Language: English" (55 s), the page went blank, WAIT, BLOCKED "waited without progress" |
+
+The video attached to the PR is the first run's frames at 4x speed, no cuts (44 s). At CPU speed the 240 s browser
+budget allows two or three decisions; the GPU runs above are the task-level evidence.
+
+## Serving
+
+system1-omni has no OmniJev vision worker: its supported models are Laya (text), Open-Jev-27B (text) and Cua-S1
+(text and screenshot). `--model omnijev` therefore runs OmniJev in process only; a served path would need an OmniJev
+worker in system1-omni first.
