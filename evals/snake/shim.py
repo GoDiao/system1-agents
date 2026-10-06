@@ -19,9 +19,7 @@ class SystemOneBackend:
     def predict(self, state, questions):
         request = urllib.request.Request(
             self.base_url + "/v1/systemone",
-            data=json.dumps(
-                {"model": self.model, "state": state, "questions": questions}
-            ).encode(),
+            data=json.dumps({"model": self.model, "state": state, "questions": questions}).encode(),
             headers={"Content-Type": "application/json"},
             method="POST",
         )

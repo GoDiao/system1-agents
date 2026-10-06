@@ -7,7 +7,6 @@ naturally). Frames and a global summary are recorded for rendering.
 
 import argparse
 import json
-import math
 import sys
 import threading
 import time
@@ -60,10 +59,8 @@ def run_multi(argv=None):
     parser.add_argument("--height", type=int, default=16)
     parser.add_argument("--seed", type=int, default=1000)
     parser.add_argument("--initial-length", type=int, default=6)
-    parser.add_argument("--fps", type=positive, default=12,
-                        help="Per-game decision rate")
-    parser.add_argument("--steps", type=int, default=300,
-                        help="Per-game step budget")
+    parser.add_argument("--fps", type=positive, default=12, help="Per-game decision rate")
+    parser.add_argument("--steps", type=int, default=300, help="Per-game step budget")
     parser.add_argument("--prompt", choices=("compact", "detailed"), default="compact")
     parser.add_argument("--record", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -72,8 +69,7 @@ def run_multi(argv=None):
 
     policy = LayaPolicy(args.backend, model=args.model)
     runners = [
-        GameRunner(policy, args.seed + i, args.width, args.height, args.initial_length)
-        for i in range(args.games)
+        GameRunner(policy, args.seed + i, args.width, args.height, args.initial_length) for i in range(args.games)
     ]
     warm = SnakeGame(args.width, args.height, args.seed + 90000, args.initial_length)
     for _ in range(4):

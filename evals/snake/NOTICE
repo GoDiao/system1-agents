@@ -16,4 +16,5 @@ Modifications against the upstream laya_mlx/snake module:
   reuse by multi_replay; rendering behavior unchanged.
 - snake/multi.py, snake/multi_ui.py, snake/multi_replay.py (new): N-game
   orchestration, grid composition and replay rendering.
-- snake/{game,__init__,__main__}.py: unchanged copies.
+- Formatting: all Python files were reformatted to the repository ruff style
+  (ruff format); snake/{game,__init__,__main__}.py carry no functional changes.

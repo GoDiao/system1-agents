@@ -2,7 +2,7 @@
 
 import math
 
-from .ui import AMBER, BG, CYAN, DIM, FG, GREEN, MUTED, RED, Canvas
+from .ui import AMBER, CYAN, DIM, FG, GREEN, MUTED, RED, Canvas
 
 CELL_W = 44
 CELL_H = 22

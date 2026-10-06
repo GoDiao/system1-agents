@@ -98,10 +98,7 @@ def compose(game, decision, stats):
         color = (
             "#dcfff0"
             if index == 0
-            else (
-                f"#{int(18 + 64 * fraction):02x}{int(73 + 150 * fraction):02x}"
-                f"{int(57 + 102 * fraction):02x}"
-            )
+            else (f"#{int(18 + 64 * fraction):02x}{int(73 + 150 * fraction):02x}{int(57 + 102 * fraction):02x}")
         )
         c.put(top + y + 1, left + 1 + 2 * x, "██", color)
     if game["food"] is not None:

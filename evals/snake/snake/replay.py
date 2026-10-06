@@ -26,11 +26,7 @@ def load_record(path):
     if metadata is None or not frames:
         raise ValueError("Recording must contain metadata and real decision frames")
     times = [frame["at"] for frame in frames]
-    if (
-        any(not math.isfinite(t) or t < 0 for t in times)
-        or times != sorted(times)
-        or len(set(times)) != len(times)
-    ):
+    if any(not math.isfinite(t) or t < 0 for t in times) or times != sorted(times) or len(set(times)) != len(times):
         raise ValueError("Recording timestamps must strictly increase")
     return metadata, frames
 
@@ -107,11 +103,33 @@ class TerminalRaster:
 
 def ffmpeg_mp4_cmd(ffmpeg, out_path, fps, width=1920, height=1080):
     return [
-        ffmpeg, "-hide_banner", "-loglevel", "error", "-n",
-        "-f", "rawvideo", "-pixel_format", "rgb24",
-        "-video_size", f"{width}x{height}", "-framerate", str(fps),
-        "-i", "pipe:0", "-an", "-c:v", "libx264", "-preset", "fast",
-        "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out_path),
+        ffmpeg,
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-n",
+        "-f",
+        "rawvideo",
+        "-pixel_format",
+        "rgb24",
+        "-video_size",
+        f"{width}x{height}",
+        "-framerate",
+        str(fps),
+        "-i",
+        "pipe:0",
+        "-an",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "fast",
+        "-crf",
+        "18",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        str(out_path),
     ]
 
 
@@ -146,9 +164,7 @@ def main(argv=None):
         or args.width % 2
         or args.height % 2
     ):
-        parser.error(
-            "Use finite nonnegative start, positive seconds/FPS and even dimensions >= 640×480"
-        )
+        parser.error("Use finite nonnegative start, positive seconds/FPS and even dimensions >= 640×480")
     if args.output.exists():
         parser.error("Output already exists; choose a new filename")
     if args.output.suffix not in (".mp4", ".png"):
@@ -167,9 +183,7 @@ def main(argv=None):
         return compose(entry["game"], entry["decision"], {**entry["stats"], "replay": True})
 
     canvas = canvas_at(start)
-    raster = TerminalRaster(
-        canvas.width, canvas.height, width=args.width, height=args.height, font=args.font
-    )
+    raster = TerminalRaster(canvas.width, canvas.height, width=args.width, height=args.height, font=args.font)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     if args.output.suffix == ".png":
         raster.render(canvas).save(args.output)

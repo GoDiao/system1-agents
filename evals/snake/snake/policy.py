@@ -6,7 +6,6 @@ differ (HTTP /v1/systemone instead of a local laya_mlx.Agent).
 """
 
 import hashlib
-import json
 import math
 import platform
 import time
@@ -81,9 +80,7 @@ class Decision:
 
 class LayaPolicy:
     def __init__(self, backend_url=None, *, model="english", guarded=True, prompt="compact"):
-        self.backend = SystemOneBackend(
-            backend_url or "http://127.0.0.1:8000", model=model
-        )
+        self.backend = SystemOneBackend(backend_url or "http://127.0.0.1:8000", model=model)
         self.guarded = guarded
         if prompt not in ("compact", "detailed"):
             raise ValueError("prompt must be compact or detailed")
@@ -164,11 +161,7 @@ class LayaPolicy:
             raise ValueError("Model returned an invalid probability; no move executed")
         proposed = max(DIRECTIONS, key=probabilities.__getitem__)
         allowed = [m.direction for m in safe]
-        executed = (
-            max(allowed, key=probabilities.__getitem__)
-            if self.guarded and proposed not in allowed
-            else proposed
-        )
+        executed = max(allowed, key=probabilities.__getitem__) if self.guarded and proposed not in allowed else proposed
         return Decision(
             probabilities=probabilities,
             proposed=proposed,

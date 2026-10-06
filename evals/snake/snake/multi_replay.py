@@ -3,7 +3,6 @@
 import argparse
 import hashlib
 import json
-import math
 import shutil
 import subprocess
 from collections import deque
@@ -83,9 +82,7 @@ def main(argv=None):
     if not ffmpeg:
         parser.error("MP4 export needs ffmpeg")
     count = max(1, int((end - start) * args.fps))
-    process = subprocess.Popen(
-        ffmpeg_mp4_cmd(ffmpeg, args.output, args.fps), stdin=subprocess.PIPE
-    )
+    process = subprocess.Popen(ffmpeg_mp4_cmd(ffmpeg, args.output, args.fps), stdin=subprocess.PIPE)
     try:
         for index in range(count):
             t = start + index / args.fps
