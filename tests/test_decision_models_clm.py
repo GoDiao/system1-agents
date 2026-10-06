@@ -1,0 +1,211 @@
+# coding: utf-8
+"""``clm``: the question shape CLM's schema takes, the error mapping, and every place that must offer it.
+
+A ``httpx.MockTransport`` stands in for ``clm-serve``; no network and no CUDA. The shape asserted here is the one
+``clm.client`` builds, which is what ``clm-serve`` documents in its own ``POST /v1/systemone`` docstring.
+"""
+
+from __future__ import annotations
+
+import ast
+import json
+import os
+import typing
+from pathlib import Path
+from typing import Any
+from unittest import IsolatedAsyncioTestCase, TestCase
+from unittest.mock import patch
+
+import httpx
+from openjiuwen.core.common.exception.codes import StatusCode
+from openjiuwen.core.common.exception.errors import BaseError
+
+from s1a import mcp_server
+from s1a.browser.browse import BROWSER_MODEL_NAMES
+from s1a.cli import DECIDE_MODEL_NAMES
+from s1a.decision_models import DECISION_MODEL_NAMES, ChoiceQuestion, NoulQuestion, Observation
+from s1a.decision_models.clm import ClmClient, ClmModel, clm_question
+from s1a.rails import RAIL_MODEL_NAMES
+from s1a.tool.loop import MODEL_NAMES
+
+SOURCE = Path(__file__).resolve().parents[1] / "s1a"
+URL = "http://clm.test"
+OBSERVATION = Observation({"ticket": "I was charged twice. Please refund the duplicate."})
+PICK = ChoiceQuestion({"billing": "Charges and refunds", "technical": "Software problems"}, rules="route it")
+CHECK = NoulQuestion("Does the customer ask for a refund?")
+ANSWER = {
+    "model": "clm-latest",
+    "answers": {
+        "pick": {
+            "type": "choice",
+            "choice": "billing",
+            "confidence": 0.9,
+            "probabilities": {"billing": 0.9, "technical": 0.1},
+        }
+    },
+    "usage": {"input_tokens": 12, "output_tokens": 0},
+}
+
+
+def ok(payload: dict[str, Any], headers: dict[str, str] | None = None) -> httpx.Response:
+    return httpx.Response(200, json=payload, headers=headers)
+
+
+class Server:
+    """One scripted ``clm-serve``: the answers it gives, and the requests it saw."""
+
+    def __init__(self, script: list[httpx.Response] | None = None, models: dict[str, Any] | None = None) -> None:
+        self.script = list(script or [])
+        self.models = models if models is not None else {"models": [{"name": "clm-latest"}]}
+        self.requests: list[httpx.Request] = []
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if self.script:  # first, so a test can script the /v1/models read as well as a decision
+            step = self.script.pop(0)
+            if isinstance(step, Exception):
+                raise step
+            return step
+        if request.url.path == "/v1/models":
+            return ok(self.models)
+        return ok(ANSWER)
+
+    def client(self, **kwargs: Any) -> ClmClient:
+        return ClmClient(url=URL, transport=httpx.MockTransport(self.handler), **kwargs)
+
+    def model(self, **kwargs: Any) -> ClmModel:
+        return ClmModel(self.client(), **kwargs)
+
+
+class TestClmQuestion(TestCase):
+    def test_a_choice_sends_its_options_as_criteria(self) -> None:
+        self.assertEqual(
+            clm_question(PICK),
+            {
+                "type": "choice",
+                "instructions": "route it",
+                "criteria": {"billing": "Charges and refunds", "technical": "Software problems"},
+            },
+        )
+
+    def test_the_instructions_are_text_and_not_the_object_jev_wants(self) -> None:
+        """CLM's state head embeds ``state + instructions`` as prose; a Jev-shaped object is not what it reads."""
+        question = ChoiceQuestion({"a": "one"}, goal="Pick one.", operation="choose", rules=("r1", "r2"))
+        self.assertEqual(clm_question(question)["instructions"], "Pick one.\nchoose\nr1\nr2")
+
+    def test_a_question_with_nothing_to_say_sends_no_instructions(self) -> None:
+        self.assertIsNone(clm_question(ChoiceQuestion({"a": "one"}))["instructions"])
+
+    def test_a_noul_carries_criteria_only_when_the_caller_gave_them(self) -> None:
+        self.assertEqual(clm_question(CHECK), {"type": "noul", "instructions": "Does the customer ask for a refund?"})
+        spelled = NoulQuestion("Is it so?", {"true": "yes", "false": "no"})
+        self.assertEqual(clm_question(spelled)["criteria"], {"true": "yes", "false": "no"})
+
+    def test_a_single_rule_is_a_string_and_several_are_joined(self) -> None:
+        self.assertEqual(clm_question(ChoiceQuestion({"a": "one"}, rules="just this"))["instructions"], "just this")
+        self.assertEqual(clm_question(ChoiceQuestion({"a": "one"}, rules=("a", "b")))["instructions"], "a\nb")
+
+
+class TestClmModel(IsolatedAsyncioTestCase):
+    async def test_the_body_is_the_one_clm_serve_documents(self) -> None:
+        server = Server()
+        await server.model().decide_many(OBSERVATION, {"pick": PICK})
+        post = server.requests[-1]
+        self.assertEqual(post.url, httpx.URL(URL + "/v1/systemone"))
+        body = json.loads(post.content)
+        self.assertEqual(body["model"], "clm-latest")
+        self.assertEqual(body["state"], OBSERVATION.state)
+        self.assertEqual(body["questions"]["pick"]["criteria"], dict(PICK.options))
+
+    async def test_the_answer_and_who_served_it_are_recorded(self) -> None:
+        server = Server()
+        model = server.model()
+        await model.warm()
+        decision = await model.decide_many(OBSERVATION, {"pick": PICK})
+        self.assertEqual(decision.choice("pick").key, "billing")
+        self.assertEqual(decision.model, "clm-latest")
+        self.assertEqual(decision.usage.input_tokens, 12)
+        self.assertEqual(decision.provenance["served_by"]["url"], URL)
+
+    async def test_a_server_that_is_not_there_names_the_recipe(self) -> None:
+        server = Server(script=[httpx.ConnectError("refused"), httpx.ConnectError("refused")])
+        with self.assertRaises(BaseError) as caught:
+            await server.model().decide_many(OBSERVATION, {"pick": PICK})
+        self.assertEqual(caught.exception.status, StatusCode.MODEL_CALL_FAILED)
+        self.assertIn("recipe/clm/README.md", str(caught.exception))
+
+    async def test_warm_reports_a_server_that_is_not_listening(self) -> None:
+        server = Server(script=[httpx.ConnectError("refused")])
+        with self.assertRaises(BaseError) as caught:
+            await server.model().warm()
+        self.assertEqual(caught.exception.status, StatusCode.MODEL_CALL_FAILED)
+
+    async def test_an_error_status_is_a_failed_call_and_keeps_the_server_s_words(self) -> None:
+        server = Server(script=[httpx.Response(500, text="cache exhausted")])
+        with self.assertRaises(BaseError) as caught:
+            await server.model().decide_many(OBSERVATION, {"pick": PICK})
+        self.assertEqual(caught.exception.status, StatusCode.MODEL_CALL_FAILED)
+        self.assertIn("cache exhausted", str(caught.exception))
+
+    async def test_a_body_without_answers_is_a_failed_call(self) -> None:
+        server = Server(script=[ok({"model": "clm-latest"})])
+        with self.assertRaises(BaseError) as caught:
+            await server.model().decide_many(OBSERVATION, {"pick": PICK})
+        self.assertEqual(caught.exception.status, StatusCode.MODEL_CALL_FAILED)
+
+    async def test_a_retry_happens_once_on_a_refused_connection(self) -> None:
+        server = Server(script=[httpx.ConnectError("refused"), ok(ANSWER)])
+        decision = await server.model().decide_many(OBSERVATION, {"pick": PICK})
+        self.assertEqual(decision.choice("pick").key, "billing")
+        self.assertEqual(len(server.requests), 2)
+
+    def test_from_env_needs_a_url_and_reads_the_rest(self) -> None:
+        with patch.dict(os.environ, {"CLM_URL": ""}, clear=False):
+            with self.assertRaises(BaseError) as caught:
+                ClmModel.from_env()
+            self.assertEqual(caught.exception.status, StatusCode.MODEL_SERVICE_CONFIG_ERROR)
+            self.assertIn("CLM_URL", str(caught.exception))
+        with patch.dict(os.environ, {"CLM_URL": URL, "CLM_MODEL": "clm-raw"}, clear=False):
+            self.assertEqual(ClmModel.from_env().model, "clm-raw")
+        with patch.dict(os.environ, {"CLM_URL": URL, "CLM_TIMEOUT_S": "0"}, clear=False):
+            with self.assertRaises(BaseError):
+                ClmModel.from_env()
+
+
+def places_missing_clm() -> list[str]:
+    """Every tuple, list, set, ``match`` or ``Literal`` that offers an HTTP decision model and not ``clm``."""
+    missing = []
+    for path in sorted(SOURCE.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+                values = {e.value for e in node.elts if isinstance(e, ast.Constant)}
+            elif isinstance(node, ast.Match):
+                values = set().union(
+                    *({n.value for n in ast.walk(case.pattern) if isinstance(n, ast.Constant)} for case in node.cases)
+                )
+            else:
+                continue
+            if "jev" in values and "clm" not in values:
+                missing.append(f"{path.relative_to(SOURCE.parent).as_posix()}:{node.lineno}")
+    return missing
+
+
+def test_every_place_that_offers_jev_offers_clm() -> None:
+    assert places_missing_clm() == []
+
+
+def test_the_named_lists() -> None:
+    for names in (DECISION_MODEL_NAMES, DECIDE_MODEL_NAMES, RAIL_MODEL_NAMES, MODEL_NAMES, BROWSER_MODEL_NAMES):
+        assert "clm" in names
+    decide_model = typing.get_type_hints(
+        mcp_server.decide.__wrapped__ if hasattr(mcp_server.decide, "__wrapped__") else mcp_server.decide
+    )["model"]
+    assert "clm" in typing.get_args(decide_model)
+
+
+def test_the_check_would_catch_a_missing_place(tmp_path: Path, monkeypatch: Any) -> None:
+    (tmp_path / "s1a").mkdir()
+    (tmp_path / "s1a" / "new_front.py").write_text('NAMES = ("jev", "laya")\n', encoding="utf-8")
+    monkeypatch.setattr(__name__ + ".SOURCE", tmp_path / "s1a")
+    assert places_missing_clm() == ["s1a/new_front.py:1"]

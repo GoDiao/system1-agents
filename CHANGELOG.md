@@ -25,6 +25,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 ### Added
 
+- `--model clm`: CLM's `clm-serve` behind the decision-model interface, over its `/v1/systemone`. The engine owns
+  everything after a frozen Qwen3-8B encoder, so no torch and no cloud key are needed on this side. Offered
+  everywhere the other HTTP models are: `run`, `decide`, `probe`, rails, the browser front and the MCP server.
+  See [docs/clm.md](docs/clm.md) and the [ticket-router evidence](evals/ticket_router/CLM.md).
 - Agent use-case recipe index, authoring template and contributor skill, with a runnable ticket-routing
   example and independent fixture verification.
 - Contributor guidance for recording and attaching agent video demos, identifying the inference engine and
