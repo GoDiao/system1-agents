@@ -147,6 +147,7 @@ interface fits: [docs/architecture.md](docs/architecture.md), [docs/decision-mod
 - [Agent use-case recipes](recipes/README.md): setup, run commands, result checks and demos for complete tasks.
 - [docs/architecture.md](docs/architecture.md) and [docs/decision-models.md](docs/decision-models.md): the fronts, the model slot, the model interface, adding a backend.
 - [docs/browser-front.md](docs/browser-front.md): the browser policy, decision by decision.
+- [docs/served-laya.md](docs/served-laya.md): Laya served by system1-omni as a decision model over HTTP, with its [API spec](docs/api/laya-systemone.openapi.yaml).
 - [docs/configuration.md](docs/configuration.md): environment variables, defaults and reader subsystems in one table.
 - [docs/glossary.md](docs/glossary.md): terms the documentation glosses on first mention.
 - [docs/why.md](docs/why.md): the problem, the philosophy, the precedents.
