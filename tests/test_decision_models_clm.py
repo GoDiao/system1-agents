@@ -27,24 +27,37 @@ from s1a.decision_models import DECISION_MODEL_NAMES, ChoiceQuestion, NoulQuesti
 from s1a.decision_models.clm import ClmClient, ClmModel, clm_question
 from s1a.rails import RAIL_MODEL_NAMES
 from s1a.tool.loop import MODEL_NAMES
+from tests.decision_model_contract import DecisionModelContract
 
 SOURCE = Path(__file__).resolve().parents[1] / "s1a"
 URL = "http://clm.test"
 OBSERVATION = Observation({"ticket": "I was charged twice. Please refund the duplicate."})
 PICK = ChoiceQuestion({"billing": "Charges and refunds", "technical": "Software problems"}, rules="route it")
 CHECK = NoulQuestion("Does the customer ask for a refund?")
-ANSWER = {
-    "model": "clm-latest",
-    "answers": {
-        "pick": {
-            "type": "choice",
-            "choice": "billing",
-            "confidence": 0.9,
-            "probabilities": {"billing": 0.9, "technical": 0.1},
-        }
-    },
-    "usage": {"input_tokens": 12, "output_tokens": 0},
-}
+
+
+def clm_answer(question: dict[str, Any]) -> dict[str, Any]:
+    """An answer the way ``clm-serve`` shapes it, for whatever question it was asked."""
+    if question["type"] == "noul":
+        return {"type": "noul", "noul": 0.7, "confidence": 0.7}
+    keys = list(question["criteria"])
+    return {
+        "type": "choice",
+        "choice": keys[0],
+        "confidence": 0.9,
+        "probabilities": {key: (0.9 if i == 0 else 0.1 / max(1, len(keys) - 1)) for i, key in enumerate(keys)},
+    }
+
+
+def answer_for(body: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "model": body.get("model", "clm-latest"),
+        "answers": {name: clm_answer(q) for name, q in body["questions"].items()},
+        "usage": {"input_tokens": 12, "output_tokens": 0},
+    }
+
+
+ANSWER = answer_for({"model": "clm-latest", "questions": {"pick": clm_question(PICK)}})
 
 
 def ok(payload: dict[str, Any], headers: dict[str, str] | None = None) -> httpx.Response:
@@ -68,13 +81,24 @@ class Server:
             return step
         if request.url.path == "/v1/models":
             return ok(self.models)
-        return ok(ANSWER)
+        return ok(answer_for(json.loads(request.content)))
 
     def client(self, **kwargs: Any) -> ClmClient:
         return ClmClient(url=URL, transport=httpx.MockTransport(self.handler), **kwargs)
 
     def model(self, **kwargs: Any) -> ClmModel:
         return ClmModel(self.client(), **kwargs)
+
+
+class ClmContract(DecisionModelContract, IsolatedAsyncioTestCase):
+    """The contract every backend passes: shape, validation, re-asks, images, close."""
+
+    def make(self) -> ClmModel:
+        return Server().model()
+
+    def make_scripted(self, answers: list[dict[str, Any]]) -> ClmModel:
+        script = [ok({"model": "clm-latest", "answers": a, "usage": {"input_tokens": 12}}) for a in answers]
+        return Server(script=script).model()
 
 
 class TestClmQuestion(TestCase):
@@ -209,3 +233,56 @@ def test_the_check_would_catch_a_missing_place(tmp_path: Path, monkeypatch: Any)
     (tmp_path / "s1a" / "new_front.py").write_text('NAMES = ("jev", "laya")\n', encoding="utf-8")
     monkeypatch.setattr(__name__ + ".SOURCE", tmp_path / "s1a")
     assert places_missing_clm() == ["s1a/new_front.py:1"]
+
+
+FIXTURES = Path(__file__).resolve().parent / "data" / "clm"
+
+
+def recorded(name: str) -> dict[str, Any]:
+    return json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
+
+
+class TestRecordedResponses(IsolatedAsyncioTestCase):
+    """Replay what a real clm-serve sent, recorded by ``tests/data/clm/record.py``.
+
+    The bodies are the server's, not ours: if it changes shape, these fail rather than the hand-written mock
+    quietly agreeing with itself.
+    """
+
+    def server(self, name: str) -> Server:
+        entry = recorded(name)
+        response = httpx.Response(
+            entry["status"],
+            json=entry["body"],
+            headers={"Content-Type": entry.get("content_type", "application/json")},
+        )
+        return Server(script=[response])
+
+    async def test_a_recorded_choice_answer_is_read(self) -> None:
+        decision = (
+            await self.server("choice")
+            .model()
+            .decide_many(Observation({"ticket": "I was charged twice for order 4411."}), {"pick": PICK})
+        )
+        choice = decision.choice("pick")
+        self.assertIn(choice.key, PICK.options)
+        self.assertAlmostEqual(sum(choice.probabilities.values()), 1.0, delta=0.02)
+        self.assertEqual(decision.model, "clm-latest")
+
+    async def test_a_recorded_noul_answer_is_read(self) -> None:
+        decision = await self.server("noul").model().decide_many(OBSERVATION, {"check": CHECK})
+        answer = decision.answers["check"]
+        self.assertGreaterEqual(answer.p, 0.0)
+        self.assertLessEqual(answer.p, 1.0)
+        self.assertAlmostEqual(answer.p, 0.9080319883987279, places=9)
+
+    async def test_a_recorded_rejection_keeps_the_server_s_reason(self) -> None:
+        with self.assertRaises(BaseError) as caught:
+            await self.server("bad_question").model().decide_many(OBSERVATION, {"pick": PICK})
+        self.assertEqual(caught.exception.status, StatusCode.MODEL_CALL_FAILED)
+        self.assertIn("criteria", str(caught.exception))
+
+    async def test_a_recorded_models_list_names_what_is_served(self) -> None:
+        entry = recorded("models")
+        served = await Server(script=[httpx.Response(entry["status"], json=entry["body"])]).model()._client.warm()
+        self.assertEqual([m["name"] for m in served["models"]], ["clm-latest", "clm-raw"])
