@@ -85,5 +85,6 @@ The videos are those frames at their own timestamps, real time, no cuts, under a
 
 | folder | browser | what Laya did | video |
 |---|---|---|---|
+| `live-run-2026-10-06-annotated/` | the same Chrome and profile, at 69ad3e5, run through `dump_laya.py`, which appends every Laya call's exact shaped state, questions and answer to `laya_calls.jsonl` | DONE at the first decision (0.435; DONE 0.687, CLICK 0.179) on the home page, 1,209 input tokens over 3 questions, nothing filled: a failed task | 41 s, attached to the PR: a slide with the shaped input, the frames in real time with the decision under them, a slide with the outcome (`annotate_video.py`) |
 | `live-run-2026-10-06/` | Chrome 153 on its own profile over CDP, signed out, Google's consent refused once before the run | DONE at the first decision (confidence 0.294, 1,583 input tokens) on the Google Flights home page, nothing filled: a failed task | 30 s, attached to the PR |
 | `live-run-2026-10-06-consent-page/` | `@playwright/mcp`'s own isolated, fresh profile, headed | started on Google's cookie consent page; clicked "Sign in", then "Create account" four times, DONE (0.043) on the sign-in page after 64 s: a failed task | 65 s, attached to the PR |
