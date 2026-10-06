@@ -60,7 +60,6 @@ def main() -> None:
     url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8091"
     OUT.mkdir(parents=True, exist_ok=True)
     record(url, "models", None, method="GET", path="/v1/models")
-    record(url, "health", None, method="GET", path="/health")
     record(url, "choice", CHOICE)
     record(url, "noul", NOUL)
     record(url, "bad_question", BAD)
