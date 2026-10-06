@@ -198,6 +198,7 @@ class ServedStub(DecisionModel):
     """Answers the way the served model does: an identity in ``model``, the server's facts in ``raw``."""
 
     name = "laya-served"
+    bills_input_tokens = False
 
     @property
     def model(self) -> str:
