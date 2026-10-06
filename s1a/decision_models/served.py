@@ -304,6 +304,7 @@ class ServedLayaModel(DecisionModel):
 
     name = "laya-served"
     deterministic = True
+    bills_input_tokens = False  # the client's own server, not Jev's pricing
 
     def __init__(
         self,

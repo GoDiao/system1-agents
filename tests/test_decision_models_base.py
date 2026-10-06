@@ -23,6 +23,7 @@ from s1a.decision_models import (
     RuleModel,
     ScriptedModel,
 )
+from s1a.decision_models.served import ServedLayaModel
 
 
 class TestBillingContract(TestCase):
@@ -30,6 +31,7 @@ class TestBillingContract(TestCase):
         expected = {
             JevModel: True,
             LayaModel: False,
+            ServedLayaModel: False,
             CuaS1Model: False,
             RandomModel: False,
             RuleModel: False,
