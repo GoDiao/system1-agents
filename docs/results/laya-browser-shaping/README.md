@@ -72,19 +72,18 @@ Google Flights home page (`https://www.google.com/travel/flights?hl=en`) with no
 answer says no Zurich to London flight is shown. The run's DONE is Laya's verdict at the first step, not a
 completed task.
 
-## Live run with video (2026-10-06, at 70227de)
+## Live runs with video (2026-10-06, at 70227de)
 
 ```bash
-LAYA_MAX_LEN=1536 LAYA_HEAD_MAX_LEN=1024 \
-PLAYWRIGHT_MCP_COMMAND=python PLAYWRIGHT_MCP_ARGS="-m evals.replay.cast --frames <dir>/frames -- node <@playwright/mcp@0.0.78>/cli.js" \
-  python -m s1a run flights --model laya --headed --timeout 600 --logs-dir <dir>
+LAYA_MAX_LEN=1536 LAYA_HEAD_MAX_LEN=1024 PLAYWRIGHT_MCP_COMMAND=python PLAYWRIGHT_MCP_ARGS="-m evals.replay.cast --frames <dir>/frames -- node <@playwright/mcp@0.0.78>/cli.js --cdp-endpoint=http://127.0.0.1:9224"   python -m s1a run flights --model laya --timeout 600 --logs-dir <dir>
 ```
 
 Code at 70227de (this PR with every review fix); checkpoint `convaiinnovations/laya` at `55cf4c4`, in process;
-laya 0.3.5, Python 3.13.14; Windows 11, CPU only; headed Chromium launched by `@playwright/mcp` 0.0.78 in its own
-isolated profile, signed out; one frame after every browser call (`evals/replay/cast.py`).
+laya 0.3.5, Python 3.13.14; Windows 11, CPU only; one frame after every browser call (`evals/replay/cast.py`).
+Each folder holds `decision_ticks.json`, `answer.json` and `calls.jsonl` (every browser call on the frame clock).
+The videos are those frames at their own timestamps, real time, no cuts, under a one-line title band.
 
-`live-run-2026-10-06/`: `decision_ticks.json` (6 decisions), `answer.json`, `calls.jsonl` (every browser call on the
-frame clock). Laya clicks "Sign in", then "Create account" four times, and answers DONE (confidence 0.043) on Google's
-sign-in page after 64 s: a failed task, not a completion. The video attached to the PR is these frames at their own
-timestamps, real time, no cuts, under a one-line title band (65 s).
+| folder | browser | what Laya did | video |
+|---|---|---|---|
+| `live-run-2026-10-06/` | Chrome 153 on its own profile over CDP, signed out, Google's consent refused once before the run | DONE at the first decision (confidence 0.294, 1,583 input tokens) on the Google Flights home page, nothing filled: a failed task | 30 s, attached to the PR |
+| `live-run-2026-10-06-consent-page/` | `@playwright/mcp`'s own isolated, fresh profile, headed | started on Google's cookie consent page; clicked "Sign in", then "Create account" four times, DONE (0.043) on the sign-in page after 64 s: a failed task | 65 s, attached to the PR |
