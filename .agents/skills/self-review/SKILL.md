@@ -16,6 +16,8 @@ cover the changed behavior, including failure paths and a regression case for a
 fix. Match docs and commands to the implementation. Run the applicable checks in
 `CONTRIBUTING.md`; report exact commands, outcomes, and skipped checks with reasons.
 Documentation-only changes need link/example/claim checks, not unrelated model runs.
+For use-case recipes, check the [recipe template](../../../recipes/TEMPLATE.md): commands reach the named
+agent/backend, result checks can detect failure, and each profile's validation status matches its evidence.
 
 This skill prepares a local contributor report. It does not itself authorize
 edits, commits, pushes, external posts, paid model calls, downloads, or changes to

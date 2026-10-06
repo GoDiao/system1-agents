@@ -60,6 +60,14 @@ week for Python packages and one for the GitHub Actions.
   says how to verify. Include a **Demo / evidence** section; use the [self-review skill](.agents/skills/self-review/SKILL.md)
   and the recording guide below.
 
+## Add an agent use-case recipe
+
+Use [recipes/README.md](recipes/README.md) and [the template](recipes/TEMPLATE.md) to document a complete task
+with an existing agent: prerequisites, inference backend, run command, independent result check, demo and
+troubleshooting. Keep fixtures small and reproducible; distinguish tested profiles from instructions awaiting
+a real run. Add the recipe to the index. The [add-agent-recipe skill](.agents/skills/add-agent-recipe/SKILL.md)
+guides this workflow; the builder skill also links a new agent to its recipe/evidence handoff.
+
 ## Agent video demos
 
 For changes to agent behavior, prefer a short video (about 20–45 seconds) showing **input → agent actions →

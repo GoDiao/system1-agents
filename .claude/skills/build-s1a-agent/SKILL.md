@@ -81,6 +81,8 @@ ask the user before starting one.
 
 ## 6. Demo and handoff
 
+For a reusable use case, add a recipe using [the recipe template](../../../recipes/TEMPLATE.md) and
+[add-agent-recipe skill](../../../.agents/skills/add-agent-recipe/SKILL.md), then update the recipe index.
 Follow [CONTRIBUTING.md's video guide](../../../CONTRIBUTING.md#agent-video-demos)
 for a short recording of the actual agent's input, selected actions and independently checked result.
 Use a terminal recording for a text agent or rail; label scripted checks and recorded replays.
