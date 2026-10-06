@@ -85,6 +85,8 @@ class WindowEnv:
         self._text_keys: dict[str, Element] = {}
         self._presses: list[str] = []
         self._typed = False
+        self._completion_stale = False
+        self._completion_action: str | None = None
         self._planned: dict[str, Any] | None = None
         self._ended: str | None = None
 
@@ -96,6 +98,8 @@ class WindowEnv:
         )
         self._verified_value = None
         self._text_field = None
+        self._completion_stale = False
+        self._completion_action = None
         self._presses, self._planned, self._ended, self._typed = [], None, None, False
         await self._refresh()
         clear = next((e for e in self._keys.values() if e.label in self._clear_labels), None)
@@ -186,6 +190,7 @@ class WindowEnv:
             }
             self._ended = "planned"
             return
+        completion_before_action = self._done_when(self._require_snapshot())
         if key in self._keys:
             assert element is not None
             await self._driver.click(window, self._token(element))
@@ -212,10 +217,19 @@ class WindowEnv:
             self._verified_value = current[0].value
             self._text_field = locator
             self._typed = True
+            # A result already visible before input must be produced again afterward.
+            self._completion_stale = completion_before_action
             self._presses.append(key)
             self._update_candidates()
             return
         await self._refresh()
+        if not self._done_when(self._require_snapshot()):
+            self._completion_stale = False
+            self._completion_action = None
+        elif not completion_before_action or key == self._completion_action:
+            # A new result, or repeating its producing action (e.g. Save), refreshes the evidence.
+            self._completion_stale = False
+            self._completion_action = key
 
     @property
     def done(self) -> bool:
@@ -223,7 +237,7 @@ class WindowEnv:
 
     @property
     def score(self) -> float:
-        if self._text and not self._typed:
+        if (self._text and not self._typed) or self._completion_stale:
             return 0.0
         return 1.0 if self._snapshot is not None and self._done_when(self._snapshot) else 0.0
 

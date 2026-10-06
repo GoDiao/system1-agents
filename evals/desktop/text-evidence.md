@@ -5,7 +5,7 @@ Fixture: [fixture.swift](fixture.swift). The fixture writes `/tmp/s1a-desktop-fi
 Success requires the supplied text in fresh field readback, the Saved status, and a fresh file containing
 exactly that text. The recorder independently reads/stats the file after each episode.
 
-The native runs below were made on 2026-10-05 from clean source checkouts. The follow-up adds
+The native runs below were made on 2026-10-05 from clean source checkouts. The original evidence update added
 documentation only. PR merge base: `222e656a1a53d7d19c815d8ac66defaad557b1c5`; upstream `main`
 was refreshed at `a2c46f4f40ce2c580f2bce14e6efb0b3315923e5` and was not merged into the PR.
 
@@ -218,7 +218,11 @@ Save this source as `/tmp/s1a-evidence-recorder.py`. Set `EVIDENCE_DIR`, `EVIDEN
 `EVIDENCE_EXPECTED`; for the append-only visual fixture also set `EVIDENCE_APPEND=1`.
 Use a new output directory for each run. Raw local outputs may contain paths or session identifiers;
 review them before sharing. The public transcript above normalizes those identifiers and paths.
-Recorder SHA-256: `dceb4f0984d431fa4c6fdd6c833257f25ca6070ee8bf6f5b3ea39994c1acdefd`.
+Formatted recorder SHA-256: `89ecbfbca2e1a48abc90b0bd449e8c1c43f5439db4de97dff59c004005322b7c`.
+The source below differs only in formatting from the recorder used for the 2026-10-05 runs
+([original source](https://github.com/ThinkFlowLab/system1-agents/blob/1ffac8b4fd64b72bedfa15352f33e6827222811b/evals/desktop/text-evidence.md)).
+Original-run recorder SHA-256: `dceb4f0984d431fa4c6fdd6c833257f25ca6070ee8bf6f5b3ea39994c1acdefd`. The parsed Python syntax trees match;
+the historical run results above are unchanged.
 
 <details>
 <summary>Recorder source (observations only)</summary>
@@ -298,7 +302,12 @@ async def snapshot(self, window, **kwargs):
         data = capture.image.data
         digest = hashlib.sha256(data).hexdigest()
         (root / f"{digest}.png").write_bytes(data)
-        fields["capture"] = {"id": capture.capture_id, "width": capture.width, "height": capture.height, "sha256": digest}
+        fields["capture"] = {
+            "id": capture.capture_id,
+            "width": capture.width,
+            "height": capture.height,
+            "sha256": digest,
+        }
     record("snapshot", **fields)
     return result
 
@@ -312,8 +321,13 @@ async def episode(*args, **kwargs):
     after_mtime = output.stat().st_mtime_ns if output.exists() else None
     record("episode", **asdict(result))
     record(
-        "independent_file_check", seed=result.seed, before=before, after=after,
-        before_mtime_ns=before_mtime, after_mtime_ns=after_mtime, started_ns=started_ns,
+        "independent_file_check",
+        seed=result.seed,
+        before=before,
+        after=after,
+        before_mtime_ns=before_mtime,
+        after_mtime_ns=after_mtime,
+        started_ns=started_ns,
         fresh=after_mtime is not None and after_mtime >= started_ns and after_mtime != before_mtime,
         matches=after == ((before or "") + expected if append else expected),
     )

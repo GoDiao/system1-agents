@@ -133,6 +133,7 @@ class TestDocumentActions(IsolatedAsyncioTestCase):
         self.assertIn("type:Body", await env.candidates())
 
         await env.step("type:Body")
+        self.assertEqual((env.done, env.score), (False, 0.0))
         await env.step("click:Save")
         self.assertEqual((env.done, env.score), (True, 1.0))
         self.fake.text = "changed by app"
@@ -366,6 +367,60 @@ class TestDocumentActions(IsolatedAsyncioTestCase):
                 result = await series.play(desktop.SPEC, args, results_dir=Path(self.tmp.name) / "results")
         self.assertEqual((result["mean_score"], result["errors"], self.fake.opened), (1.0, 0, 0))
         self.assertEqual(self.path.read_text(encoding="utf-8"), "hello")
+
+    async def test_full_agent_does_not_finish_on_the_status_from_an_early_save(self) -> None:
+        for mode in ("insert", "replace"):
+            for plan, score, saved in (
+                ("Save,type:Body,Save", 1.0, "hello"),
+                ("Save,type:Body", 0.0, ""),
+                ("Save,type:Body,Other,Save", 1.0, "hello"),
+                ("Save,type:Body,Other", 0.0, ""),
+            ):
+                with self.subTest(mode=mode, plan=plan):
+                    self.fake = FakeDocument(self.path)
+                    original = self.fake.window_state
+
+                    async def with_other_button(window: Window) -> Snapshot:
+                        snapshot = await original(window)
+                        other = Element(4, "AXButton", "Other", "", f"other-{self.fake.snapshots}", ("AXPress",))
+                        return replace(snapshot, elements=(*snapshot.elements, other))
+
+                    self.fake.window_state = with_other_button
+                    args = series.parser(desktop.SPEC).parse_args(
+                        ["--model", "rule", "--rethink", "off", "--episodes", "1"]
+                        + ["--app", "Document", "--goal", "write hello and save", "--expect", "Saved"]
+                        + ["--text", "hello", "--text-mode", mode, "--plan", plan, "--execute"]
+                    )
+                    with (
+                        patch.object(loop, "WORKSPACE", Path(self.tmp.name) / "ws"),
+                        patch.object(series, "optional_chat_model", lambda: None),
+                        patch.object(desktop, "driver_from_env", return_value=self.fake),
+                        patch.object(desktop, "launch_app", AsyncMock()),
+                    ):
+                        async with started_runner():
+                            result = await series.play(desktop.SPEC, args, results_dir=Path(self.tmp.name) / "results")
+                    self.assertEqual((result["mean_score"], result["errors"], self.fake.opened), (score, 0, 0))
+                    self.assertEqual(self.fake.text, "hello")
+                    self.assertEqual(self.path.read_text(encoding="utf-8"), saved)
+                    actions = [
+                        ("type" if mode == "insert" else "replace") if action == "type:Body" else "click"
+                        for action in plan.split(",")
+                    ]
+                    self.assertEqual([name for name, _ in self.fake.actions], actions)
+
+    async def test_text_input_can_produce_a_new_completion_state(self) -> None:
+        env = WindowEnv(
+            self.fake,
+            app_name="Document",
+            goal="write hello",
+            done_when=lambda snapshot: snapshot.elements[0].value == "hello",
+            execute=True,
+            clear_labels=(),
+            text="hello",
+        )
+        await env.reset()
+        await env.step("type:Body")
+        self.assertEqual((env.done, env.score), (True, 1.0))
 
     async def test_file_verification_does_not_trust_saved_label(self) -> None:
         args = series.parser(desktop.SPEC).parse_args(
