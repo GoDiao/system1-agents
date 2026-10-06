@@ -56,7 +56,9 @@ Two things differ from the Jev-shaped body, and both follow from how CLM reads a
 
 Choice and noul, like the other served backends; a `score` question is not offered to it. Images are not read. The
 engine's decision is stable to six decimals for the same request, so the model is `deterministic` and an unusable
-answer is not re-asked — a second call would pay the encoder again for the same distribution.
+answer is not re-asked — a second call would pay the encoder again for the same distribution. Every decision records
+the URL, the `X-Request-Id` it sent and the names `/v1/models` reported; the agent fronts call `warm()` for that read,
+and `decide` and `probe` make it once on their first decision instead.
 
 The engine keeps a candidate-vector cache across requests, which is the feature that makes it interesting and also
 the reason `usage.input_tokens` counts only encoder cache misses: the field moves with cache state rather than with

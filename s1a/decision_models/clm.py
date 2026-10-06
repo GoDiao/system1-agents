@@ -25,7 +25,7 @@ from collections.abc import Callable
 import httpx
 
 from openjiuwen.core.common.exception.codes import StatusCode
-from openjiuwen.core.common.exception.errors import build_error
+from openjiuwen.core.common.exception.errors import BaseError, build_error
 
 from s1a.decision_models.base import DecisionModel
 from s1a.decision_models.types import (
@@ -130,9 +130,9 @@ class ClmClient:
             ) from exc
         return body if isinstance(body, dict) else {}
 
-    async def decide(self, body: Json) -> tuple[Json, int, dict[str, str]]:
-        """One decision: the payload, its round trip in ms and the response headers."""
-        request_id = uuid.uuid4().hex
+    async def decide(self, body: Json, request_id: str) -> tuple[Json, int, dict[str, str]]:
+        """One decision: the payload, its round trip in ms and the response headers. Every attempt sends the same
+        ``X-Request-Id``, so a server's logs tie a retry to its first try."""
         headers = {"X-Request-Id": request_id}
         retried = False
         while True:
@@ -194,6 +194,7 @@ class ClmModel(DecisionModel):
         self._client = client
         self._model = model
         self._served: Json = {}
+        self._warmed = False
 
     @property
     def model(self) -> str:
@@ -201,6 +202,17 @@ class ClmModel(DecisionModel):
 
     async def warm(self) -> None:
         self._served = await self._client.warm()
+        self._warmed = True
+
+    async def _warm_once(self) -> None:
+        """The agent fronts call ``warm()``; ``decide`` and ``probe`` do not, and their record should still say what
+        answered. A failure here is the decision's to report, not this read's, so it is logged and dropped."""
+        if self._warmed:
+            return
+        try:
+            await self.warm()
+        except BaseError as exc:
+            logger.warning("[clm] could not read /v1/models at %s: %s", self._client.url, exc)
 
     async def _decide(self, observation: Observation, questions: dict[str, Question]) -> Reply:
         body = {
@@ -208,7 +220,9 @@ class ClmModel(DecisionModel):
             "state": observation.state,
             "questions": {name: clm_question(question) for name, question in questions.items()},
         }
-        payload, ms, headers = await self._client.decide(body)
+        await self._warm_once()
+        request_id = uuid.uuid4().hex
+        payload, ms, headers = await self._client.decide(body, request_id)
         answers = payload["answers"]
         lower = {key.lower(): value for key, value in headers.items()}
         return Reply(
@@ -218,6 +232,8 @@ class ClmModel(DecisionModel):
             model=str(payload.get("model") or self._model),
             raw={
                 **payload,
+                "url": self._client.url,
+                "request_id": request_id,
                 "served_by": {"url": self._client.url, "models": self._served.get("models"), "source": "warm"},
                 "clm_latency_ms": lower.get("x-clm-latency-ms"),
             },

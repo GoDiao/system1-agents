@@ -69,18 +69,21 @@ class Server:
 
     def __init__(self, script: list[httpx.Response] | None = None, models: dict[str, Any] | None = None) -> None:
         self.script = list(script or [])
-        self.models = models if models is not None else {"models": [{"name": "clm-latest"}]}
+        # /v1/models answers from here, which is also how a test makes the readiness read itself fail.
+        self.models: Any = models if models is not None else {"models": [{"name": "clm-latest"}]}
         self.requests: list[httpx.Request] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
-        if self.script:  # first, so a test can script the /v1/models read as well as a decision
+        if request.url.path == "/v1/models":
+            if isinstance(self.models, Exception):
+                raise self.models
+            return ok(self.models)
+        if self.script:  # the decisions, in the order the test listed them
             step = self.script.pop(0)
             if isinstance(step, Exception):
                 raise step
             return step
-        if request.url.path == "/v1/models":
-            return ok(self.models)
         return ok(answer_for(json.loads(request.content)))
 
     def client(self, **kwargs: Any) -> ClmClient:
@@ -159,7 +162,7 @@ class TestClmModel(IsolatedAsyncioTestCase):
         self.assertIn("recipe/clm/README.md", str(caught.exception))
 
     async def test_warm_reports_a_server_that_is_not_listening(self) -> None:
-        server = Server(script=[httpx.ConnectError("refused")])
+        server = Server(models=httpx.ConnectError("refused"))
         with self.assertRaises(BaseError) as caught:
             await server.model().warm()
         self.assertEqual(caught.exception.status, StatusCode.MODEL_CALL_FAILED)
@@ -177,11 +180,41 @@ class TestClmModel(IsolatedAsyncioTestCase):
             await server.model().decide_many(OBSERVATION, {"pick": PICK})
         self.assertEqual(caught.exception.status, StatusCode.MODEL_CALL_FAILED)
 
-    async def test_a_retry_happens_once_on_a_refused_connection(self) -> None:
-        server = Server(script=[httpx.ConnectError("refused"), ok(ANSWER)])
+    async def test_a_decision_records_the_url_and_request_id_without_a_warm_call(self) -> None:
+        """`decide` and `probe` never call `warm()`; their record still has to say who answered."""
+        server = Server()
+        decision = await server.model().decide_many(OBSERVATION, {"pick": PICK})
+        self.assertEqual(decision.provenance["url"], URL)
+        self.assertEqual(len(decision.provenance["request_id"]), 32)
+        self.assertEqual(decision.provenance["served_by"]["models"], server.models["models"])
+
+    async def test_the_readiness_read_happens_once(self) -> None:
+        server = Server()
+        model = server.model()
+        for _ in range(3):
+            await model.decide_many(OBSERVATION, {"pick": PICK})
+        reads = [r for r in server.requests if r.url.path == "/v1/models"]
+        self.assertEqual(len(reads), 1)
+
+    async def test_a_readiness_read_that_fails_does_not_fail_the_decision(self) -> None:
+        server = Server(models=httpx.ConnectError("refused"))
         decision = await server.model().decide_many(OBSERVATION, {"pick": PICK})
         self.assertEqual(decision.choice("pick").key, "billing")
-        self.assertEqual(len(server.requests), 2)
+        self.assertIsNone(decision.provenance["served_by"]["models"])
+
+    async def test_a_retry_happens_once_on_a_refused_connection(self) -> None:
+        server = Server(
+            script=[
+                httpx.ConnectError("refused"),
+                ok(answer_for({"model": "clm-latest", "questions": {"pick": clm_question(PICK)}})),
+            ]
+        )
+        model = server.model()
+        await model.warm()  # the readiness read is one request of its own; count only the decision's
+        decision = await model.decide_many(OBSERVATION, {"pick": PICK})
+        self.assertEqual(decision.choice("pick").key, "billing")
+        posts = [r for r in server.requests if r.url.path == "/v1/systemone"]
+        self.assertEqual(len(posts), 2)
 
     def test_from_env_needs_a_url_and_reads_the_rest(self) -> None:
         with patch.dict(os.environ, {"CLM_URL": ""}, clear=False):
@@ -284,5 +317,5 @@ class TestRecordedResponses(IsolatedAsyncioTestCase):
 
     async def test_a_recorded_models_list_names_what_is_served(self) -> None:
         entry = recorded("models")
-        served = await Server(script=[httpx.Response(entry["status"], json=entry["body"])]).model()._client.warm()
+        served = await Server(models=entry["body"]).model()._client.warm()
         self.assertEqual([m["name"] for m in served["models"]], ["clm-latest", "clm-raw"])
