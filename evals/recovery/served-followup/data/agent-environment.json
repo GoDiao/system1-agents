@@ -1,0 +1,16 @@
+{
+  "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+  "packages": {
+    "openjiuwen": "0.1.18",
+    "openai": "3.16.2",
+    "httpx": "0.28.1",
+    "pydantic": "2.13.5",
+    "laya": "0.3.5",
+    "torch": "2.14.0+cpu",
+    "transformers": "5.17.0",
+    "huggingface-hub": "1.32.0",
+    "numpy": "2.5.3",
+    "playwright": null
+  },
+  "location_note": "Agent environment, distinct from the worker overlay; metadata only, no model import."
+}

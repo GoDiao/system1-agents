@@ -1,0 +1,145 @@
+{
+  "registered_at": "2026-10-06T06:56:46.673613+00:00",
+  "purpose": "Private reviewer-followup integration and workflow evidence, not a general success-rate benchmark",
+  "agents_pr31": "bd54c1461a782c138e28801441ece47321b274bd",
+  "agents_pr35": "365a17cf71b2273159874e4e61235887dc0f8f5f",
+  "agents_pr35_base": "a2c46f4f40ce2c580f2bce14e6efb0b3315923e5",
+  "engine": "ae86032cba2466f45f42c2ebdfadbcfa8c30eb9f",
+  "source_state": "uncommitted combined source snapshot, PR35 still unmerged, source patches/hashes must accompany results",
+  "checkpoint": {
+    "repo": "convaiinnovations/laya",
+    "revision": "55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851",
+    "name": "english"
+  },
+  "planner": {
+    "provider": "OpenCode Go",
+    "model": "deepseek-v4.1-flash",
+    "thinking": "disabled",
+    "temperature": 0,
+    "sdk_retries": 0,
+    "request_timeout_s": 45,
+    "planning_max_tokens": 120
+  },
+  "profiles": [
+    {
+      "name": "native",
+      "worker_override": null,
+      "expected_checkpoint_windows": {
+        "max_len": 512,
+        "head_max_len": 192
+      },
+      "client_window": 512
+    },
+    {
+      "name": "match-legacy",
+      "worker_override": {
+        "max_len": 4096,
+        "head_max_len": 1536
+      },
+      "label": "Private explicit runtime cfg override, not upstream default or retrained checkpoint",
+      "client_window": 4096
+    }
+  ],
+  "trial_schedule": [
+    {
+      "profile": "native",
+      "task": "normal",
+      "arm": "off",
+      "repeat": 0
+    },
+    {
+      "profile": "native",
+      "task": "normal",
+      "arm": "on",
+      "repeat": 0
+    },
+    {
+      "profile": "native",
+      "task": "recoverable",
+      "arm": "off",
+      "repeat": 0
+    },
+    {
+      "profile": "native",
+      "task": "recoverable",
+      "arm": "on",
+      "repeat": 0
+    },
+    {
+      "profile": "match-legacy",
+      "task": "normal",
+      "arm": "off",
+      "repeat": 0
+    },
+    {
+      "profile": "match-legacy",
+      "task": "normal",
+      "arm": "on",
+      "repeat": 0
+    },
+    {
+      "profile": "match-legacy",
+      "task": "recoverable",
+      "arm": "off",
+      "repeat": 0
+    },
+    {
+      "profile": "match-legacy",
+      "task": "recoverable",
+      "arm": "on",
+      "repeat": 0
+    }
+  ],
+  "validation_variant": true,
+  "budgets": {
+    "task_timeout_s": 180,
+    "steps": 24,
+    "stall_after": 3,
+    "recovery_attempts": 3,
+    "recovery_active_s": 45,
+    "served_decision_timeout_s": 45,
+    "cpu_threads": 4,
+    "gpus": 0
+  },
+  "gates": [
+    "same loaded worker cfg and device read before trials",
+    "actual checkpoint revision must equal declared pin",
+    "match-legacy runs only if actual cfg override is supported and verified; otherwise mark its scheduled trials not run with exact setup reason"
+  ],
+  "video": "Record actual browser frames in every run; label time-compression if edited, attach trace timestamps. No action/plan injection. Include failure if present.",
+  "oracle": "Fresh per-trial fixture server POST matching expected value; model DONE/exit0 are not completion evidence",
+  "errors": "Keep planned denominator and original traces including failure/timeout/setup errors. No repeated runs to select a success.",
+  "prospective_plan_sha256": "74fd835cc746c34d8ede1a3a5e86322159742311ff9aeb287646a652d86c9082",
+  "runtime_manifest_sha256": "6e6b5da7b88cb7f0a37151c8110280778d602cd755a331e3ffdb51e0b50f27a5",
+  "execution": {
+    "state": "completed",
+    "elapsed_s": 601,
+    "gpus": 0,
+    "cpu_allocation": 4,
+    "memory_requested_gib": 12,
+    "peak_memory": null,
+    "note": "Scheduler peak RSS/CPU accounting were unavailable. This is a resource request, not a peak-memory measurement."
+  },
+  "setup_failure": {
+    "scheduled_trials": 8,
+    "model_trials_executed": 0,
+    "planner_calls": 0,
+    "reason": "The first launch passed an unsupported --require-device option to the outer wrapper. Removed only that redundant flag; the wrapper still forwards require_device=True. The same original eight-cell schedule then ran once."
+  },
+  "source_patch_sha256": "46c70edb60a85112a8da594f636a3095743722429470c46b7296efb28f5ed20a",
+  "recorder_sha256": "f5d9c3f8a33e540b75bd5587fc6d5d895a8ea131beda2628825a5a9ba3c2bd03",
+  "worker_wrapper_sha256": "21ad0b27bb9f81ad4b31b23c4f3488839548a362a7b0d07eb85e8824cd616442",
+  "observed_client_context": {
+    "native": {
+      "LAYA_SERVED_MODEL": "english",
+      "LAYA_SERVED_MAX_LEN": "512",
+      "LAYA_SERVED_TIMEOUT_S": "45"
+    },
+    "match-legacy": {
+      "LAYA_SERVED_MODEL": "english",
+      "LAYA_SERVED_MAX_LEN": "4096",
+      "LAYA_SERVED_TIMEOUT_S": "45"
+    }
+  },
+  "source_patch_composition": "PR35 import/conflict resolution diff plus the separately recorded PR31 eval integration delta. The original full-source diff was captured before that small eval delta."
+}

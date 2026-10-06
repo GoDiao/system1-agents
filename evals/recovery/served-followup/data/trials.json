@@ -1,0 +1,525 @@
+[
+  {
+    "profile": "native",
+    "task": "normal",
+    "arm": "off",
+    "repeat": 0,
+    "verified": false,
+    "terminal": "BLOCKED",
+    "errored": false,
+    "error": null,
+    "model": "english",
+    "platform": "Linux-6.8.0-142-generic-x86_64-with-glibc2.39",
+    "elapsed_s": 30.517,
+    "recovery_attempts": 0,
+    "recovery_spent_s": 0.0,
+    "recovery_failed": false,
+    "recovery_termination": null,
+    "recovery_events": [],
+    "planner_attempts": 0,
+    "planner_failures": 0,
+    "decision_calls": 4,
+    "decision_failures": 0,
+    "decision_retries": 0,
+    "decision_ms_total": 11058,
+    "decision_ms_mean": 2764.5,
+    "decision_input_tokens": 4419,
+    "decision_usage_known": true,
+    "unknown_decision_calls": 0,
+    "chat_calls": 2,
+    "chat_calls_observed": 2,
+    "chat_failures": 0,
+    "chat_ms_total": 3549,
+    "chat_input_tokens": 329,
+    "chat_output_tokens": 45,
+    "chat_cache_tokens": 0,
+    "usage_known": true,
+    "unknown_chat_calls": 0,
+    "jev_input_tokens": 0,
+    "cost_usd": null,
+    "cost_basis": "unknown: live provider pricing is not verified and CHAT_USD_PER_M_* was not set",
+    "wasted_actions": 3,
+    "steps": 4,
+    "oracle": {
+      "trial": "trial-0001",
+      "task": "normal",
+      "verified": false,
+      "submissions": [
+        {
+          "trial": "trial-0001",
+          "task": "normal",
+          "fields": {}
+        },
+        {
+          "trial": "trial-0001",
+          "task": "normal",
+          "fields": {}
+        }
+      ]
+    }
+  },
+  {
+    "profile": "native",
+    "task": "normal",
+    "arm": "on",
+    "repeat": 0,
+    "verified": true,
+    "terminal": "verified",
+    "errored": false,
+    "error": null,
+    "model": "english",
+    "platform": "Linux-6.8.0-142-generic-x86_64-with-glibc2.39",
+    "elapsed_s": 42.044,
+    "recovery_attempts": 1,
+    "recovery_spent_s": 2.217,
+    "recovery_failed": false,
+    "recovery_termination": "planned",
+    "recovery_events": [
+      {
+        "trigger": "stalled",
+        "stage": "planner",
+        "termination": "planned",
+        "tick": 4,
+        "attempt": 1,
+        "spent_s": 2.217,
+        "error": null
+      }
+    ],
+    "planner_attempts": 1,
+    "planner_failures": 0,
+    "decision_calls": 7,
+    "decision_failures": 0,
+    "decision_retries": 0,
+    "decision_ms_total": 20199,
+    "decision_ms_mean": 2885.6,
+    "decision_input_tokens": 8158,
+    "decision_usage_known": true,
+    "unknown_decision_calls": 0,
+    "chat_calls": 3,
+    "chat_calls_observed": 3,
+    "chat_failures": 0,
+    "chat_ms_total": 4635,
+    "chat_input_tokens": 1218,
+    "chat_output_tokens": 61,
+    "chat_cache_tokens": 0,
+    "usage_known": true,
+    "unknown_chat_calls": 0,
+    "jev_input_tokens": 0,
+    "cost_usd": null,
+    "cost_basis": "unknown: live provider pricing is not verified and CHAT_USD_PER_M_* was not set",
+    "wasted_actions": 3,
+    "steps": 6,
+    "oracle": {
+      "trial": "trial-0002",
+      "task": "normal",
+      "verified": true,
+      "submissions": [
+        {
+          "trial": "trial-0002",
+          "task": "normal",
+          "fields": {}
+        },
+        {
+          "trial": "trial-0002",
+          "task": "normal",
+          "fields": {}
+        },
+        {
+          "trial": "trial-0002",
+          "task": "normal",
+          "fields": {
+            "value": "hello world"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "profile": "native",
+    "task": "recoverable",
+    "arm": "off",
+    "repeat": 0,
+    "verified": false,
+    "terminal": "BLOCKED",
+    "errored": false,
+    "error": null,
+    "model": "english",
+    "platform": "Linux-6.8.0-142-generic-x86_64-with-glibc2.39",
+    "elapsed_s": 35.064,
+    "recovery_attempts": 0,
+    "recovery_spent_s": 0.0,
+    "recovery_failed": false,
+    "recovery_termination": null,
+    "recovery_events": [],
+    "planner_attempts": 0,
+    "planner_failures": 0,
+    "decision_calls": 5,
+    "decision_failures": 0,
+    "decision_retries": 0,
+    "decision_ms_total": 20842,
+    "decision_ms_mean": 4168.4,
+    "decision_input_tokens": 8340,
+    "decision_usage_known": true,
+    "unknown_decision_calls": 0,
+    "chat_calls": 1,
+    "chat_calls_observed": 1,
+    "chat_failures": 0,
+    "chat_ms_total": 1954,
+    "chat_input_tokens": 140,
+    "chat_output_tokens": 59,
+    "chat_cache_tokens": 0,
+    "usage_known": true,
+    "unknown_chat_calls": 0,
+    "jev_input_tokens": 0,
+    "cost_usd": null,
+    "cost_basis": "unknown: live provider pricing is not verified and CHAT_USD_PER_M_* was not set",
+    "wasted_actions": 2,
+    "steps": 4,
+    "oracle": {
+      "trial": "trial-0003",
+      "task": "recoverable",
+      "verified": false,
+      "submissions": [
+        {
+          "trial": "trial-0003",
+          "task": "recoverable",
+          "fields": {
+            "value": "original"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "profile": "native",
+    "task": "recoverable",
+    "arm": "on",
+    "repeat": 0,
+    "verified": false,
+    "terminal": "BLOCKED",
+    "errored": false,
+    "error": null,
+    "model": "english",
+    "platform": "Linux-6.8.0-142-generic-x86_64-with-glibc2.39",
+    "elapsed_s": 34.899,
+    "recovery_attempts": 0,
+    "recovery_spent_s": 0.0,
+    "recovery_failed": false,
+    "recovery_termination": null,
+    "recovery_events": [],
+    "planner_attempts": 0,
+    "planner_failures": 0,
+    "decision_calls": 5,
+    "decision_failures": 0,
+    "decision_retries": 0,
+    "decision_ms_total": 20731,
+    "decision_ms_mean": 4146.2,
+    "decision_input_tokens": 8340,
+    "decision_usage_known": true,
+    "unknown_decision_calls": 0,
+    "chat_calls": 1,
+    "chat_calls_observed": 1,
+    "chat_failures": 0,
+    "chat_ms_total": 1895,
+    "chat_input_tokens": 140,
+    "chat_output_tokens": 49,
+    "chat_cache_tokens": 0,
+    "usage_known": true,
+    "unknown_chat_calls": 0,
+    "jev_input_tokens": 0,
+    "cost_usd": null,
+    "cost_basis": "unknown: live provider pricing is not verified and CHAT_USD_PER_M_* was not set",
+    "wasted_actions": 2,
+    "steps": 4,
+    "oracle": {
+      "trial": "trial-0004",
+      "task": "recoverable",
+      "verified": false,
+      "submissions": [
+        {
+          "trial": "trial-0004",
+          "task": "recoverable",
+          "fields": {
+            "value": "original"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "profile": "match-legacy",
+    "task": "normal",
+    "arm": "off",
+    "repeat": 0,
+    "verified": false,
+    "terminal": "BLOCKED",
+    "errored": false,
+    "error": null,
+    "model": "english",
+    "platform": "Linux-6.8.0-142-generic-x86_64-with-glibc2.39",
+    "elapsed_s": 85.169,
+    "recovery_attempts": 0,
+    "recovery_spent_s": 0.0,
+    "recovery_failed": false,
+    "recovery_termination": null,
+    "recovery_events": [],
+    "planner_attempts": 0,
+    "planner_failures": 0,
+    "decision_calls": 7,
+    "decision_failures": 0,
+    "decision_retries": 0,
+    "decision_ms_total": 57703,
+    "decision_ms_mean": 8243.3,
+    "decision_input_tokens": 20533,
+    "decision_usage_known": true,
+    "unknown_decision_calls": 0,
+    "chat_calls": 4,
+    "chat_calls_observed": 4,
+    "chat_failures": 0,
+    "chat_ms_total": 7895,
+    "chat_input_tokens": 922,
+    "chat_output_tokens": 58,
+    "chat_cache_tokens": 0,
+    "usage_known": true,
+    "unknown_chat_calls": 0,
+    "jev_input_tokens": 0,
+    "cost_usd": null,
+    "cost_basis": "unknown: live provider pricing is not verified and CHAT_USD_PER_M_* was not set",
+    "wasted_actions": 5,
+    "steps": 7,
+    "oracle": {
+      "trial": "trial-0001",
+      "task": "normal",
+      "verified": false,
+      "submissions": [
+        {
+          "trial": "trial-0001",
+          "task": "normal",
+          "fields": {}
+        },
+        {
+          "trial": "trial-0001",
+          "task": "normal",
+          "fields": {}
+        },
+        {
+          "trial": "trial-0001",
+          "task": "normal",
+          "fields": {}
+        }
+      ]
+    }
+  },
+  {
+    "profile": "match-legacy",
+    "task": "normal",
+    "arm": "on",
+    "repeat": 0,
+    "verified": true,
+    "terminal": "verified",
+    "errored": false,
+    "error": null,
+    "model": "english",
+    "platform": "Linux-6.8.0-142-generic-x86_64-with-glibc2.39",
+    "elapsed_s": 99.523,
+    "recovery_attempts": 1,
+    "recovery_spent_s": 3.066,
+    "recovery_failed": false,
+    "recovery_termination": "planned",
+    "recovery_events": [
+      {
+        "trigger": "stalled",
+        "stage": "planner",
+        "termination": "planned",
+        "tick": 7,
+        "attempt": 1,
+        "spent_s": 3.066,
+        "error": null
+      }
+    ],
+    "planner_attempts": 1,
+    "planner_failures": 0,
+    "decision_calls": 9,
+    "decision_failures": 0,
+    "decision_retries": 0,
+    "decision_ms_total": 68484,
+    "decision_ms_mean": 7609.3,
+    "decision_input_tokens": 24377,
+    "decision_usage_known": true,
+    "unknown_decision_calls": 0,
+    "chat_calls": 4,
+    "chat_calls_observed": 4,
+    "chat_failures": 0,
+    "chat_ms_total": 7245,
+    "chat_input_tokens": 1590,
+    "chat_output_tokens": 81,
+    "chat_cache_tokens": 0,
+    "usage_known": true,
+    "unknown_chat_calls": 0,
+    "jev_input_tokens": 0,
+    "cost_usd": null,
+    "cost_basis": "unknown: live provider pricing is not verified and CHAT_USD_PER_M_* was not set",
+    "wasted_actions": 5,
+    "steps": 8,
+    "oracle": {
+      "trial": "trial-0002",
+      "task": "normal",
+      "verified": true,
+      "submissions": [
+        {
+          "trial": "trial-0002",
+          "task": "normal",
+          "fields": {}
+        },
+        {
+          "trial": "trial-0002",
+          "task": "normal",
+          "fields": {}
+        },
+        {
+          "trial": "trial-0002",
+          "task": "normal",
+          "fields": {}
+        },
+        {
+          "trial": "trial-0002",
+          "task": "normal",
+          "fields": {
+            "value": "hello world"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "profile": "match-legacy",
+    "task": "recoverable",
+    "arm": "off",
+    "repeat": 0,
+    "verified": false,
+    "terminal": "BLOCKED",
+    "errored": false,
+    "error": null,
+    "model": "english",
+    "platform": "Linux-6.8.0-142-generic-x86_64-with-glibc2.39",
+    "elapsed_s": 86.736,
+    "recovery_attempts": 0,
+    "recovery_spent_s": 0.0,
+    "recovery_failed": false,
+    "recovery_termination": null,
+    "recovery_events": [],
+    "planner_attempts": 0,
+    "planner_failures": 0,
+    "decision_calls": 6,
+    "decision_failures": 0,
+    "decision_retries": 0,
+    "decision_ms_total": 60491,
+    "decision_ms_mean": 10081.8,
+    "decision_input_tokens": 21318,
+    "decision_usage_known": true,
+    "unknown_decision_calls": 0,
+    "chat_calls": 1,
+    "chat_calls_observed": 1,
+    "chat_failures": 0,
+    "chat_ms_total": 2075,
+    "chat_input_tokens": 140,
+    "chat_output_tokens": 50,
+    "chat_cache_tokens": 0,
+    "usage_known": true,
+    "unknown_chat_calls": 0,
+    "jev_input_tokens": 0,
+    "cost_usd": null,
+    "cost_basis": "unknown: live provider pricing is not verified and CHAT_USD_PER_M_* was not set",
+    "wasted_actions": 5,
+    "steps": 6,
+    "oracle": {
+      "trial": "trial-0003",
+      "task": "recoverable",
+      "verified": false,
+      "submissions": [
+        {
+          "trial": "trial-0003",
+          "task": "recoverable",
+          "fields": {
+            "value": "original"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "profile": "match-legacy",
+    "task": "recoverable",
+    "arm": "on",
+    "repeat": 0,
+    "verified": false,
+    "terminal": "BLOCKED",
+    "errored": false,
+    "error": null,
+    "model": "english",
+    "platform": "Linux-6.8.0-142-generic-x86_64-with-glibc2.39",
+    "elapsed_s": 151.16,
+    "recovery_attempts": 2,
+    "recovery_spent_s": 4.92,
+    "recovery_failed": false,
+    "recovery_termination": "planned",
+    "recovery_events": [
+      {
+        "trigger": "stalled",
+        "stage": "planner",
+        "termination": "planned",
+        "tick": 6,
+        "attempt": 1,
+        "spent_s": 2.663,
+        "error": null
+      },
+      {
+        "trigger": "stalled",
+        "stage": "planner",
+        "termination": "planned",
+        "tick": 9,
+        "attempt": 2,
+        "spent_s": 4.92,
+        "error": null
+      }
+    ],
+    "planner_attempts": 2,
+    "planner_failures": 0,
+    "decision_calls": 10,
+    "decision_failures": 0,
+    "decision_retries": 0,
+    "decision_ms_total": 108986,
+    "decision_ms_mean": 10898.6,
+    "decision_input_tokens": 37998,
+    "decision_usage_known": true,
+    "unknown_decision_calls": 0,
+    "chat_calls": 3,
+    "chat_calls_observed": 3,
+    "chat_failures": 0,
+    "chat_ms_total": 5711,
+    "chat_input_tokens": 2047,
+    "chat_output_tokens": 127,
+    "chat_cache_tokens": 0,
+    "usage_known": true,
+    "unknown_chat_calls": 0,
+    "jev_input_tokens": 0,
+    "cost_usd": null,
+    "cost_basis": "unknown: live provider pricing is not verified and CHAT_USD_PER_M_* was not set",
+    "wasted_actions": 8,
+    "steps": 9,
+    "oracle": {
+      "trial": "trial-0004",
+      "task": "recoverable",
+      "verified": false,
+      "submissions": [
+        {
+          "trial": "trial-0004",
+          "task": "recoverable",
+          "fields": {
+            "value": "original"
+          }
+        }
+      ]
+    }
+  }
+]

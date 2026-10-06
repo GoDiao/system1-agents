@@ -1,0 +1,1003 @@
+{
+  "schema": "selected-real-workflow-v1",
+  "profile": "match-legacy",
+  "task": "recoverable",
+  "arm": "on",
+  "repeat": 0,
+  "models": {
+    "decision": "served Laya 0.3.20",
+    "planner_and_free_text": "Go deepseek-v4.1-flash"
+  },
+  "origin_trace_sha256": "a3a3c90f8d7344e7e25fe132e9320574efe02b769b27b5ca4b56dc0ff2bcf1a0",
+  "raw_video_sha256": "a9ee933aa6a99fed0f94e1538f7b58c1f71fd07b044772c58e3c16618bb166a2",
+  "raw_video_duration_s": 148.76,
+  "trace_start_stop_interval_s": 150.324342,
+  "timing_note": "Trace times use the completed video_start call as zero. Browser screencast time is approximate; duration differs from the start/stop interval. Captions indicate phases, not frame-exact event times.",
+  "omissions": "Routine probes and MCP file payloads omitted; refreshed observations, plans, all executed selected actions and independent oracle retained.",
+  "events": [
+    {
+      "kind": "model_selected_action",
+      "wall": "2026-10-06T07:52:51.235360+00:00",
+      "seconds_from_video_start_return": 10.075682,
+      "tick": 1,
+      "move": {
+        "operation": "CLICK",
+        "confidence": 0.1094,
+        "latency_ms": 9352,
+        "usage": {
+          "input_tokens": 3273,
+          "output_tokens": 0
+        },
+        "operation_probabilities": {
+          "CLICK": 0.3349,
+          "TYPE_TEXT": 0.1735,
+          "PRESS_ENTER": 0.2432,
+          "WAIT": 0.0284,
+          "DONE": 0.1336,
+          "BLOCKED": 0.0863
+        },
+        "value_choice": "",
+        "candidate": {
+          "operation": "CLICK",
+          "index": "1",
+          "option_label": ""
+        },
+        "target": {
+          "label": "Value",
+          "role": "textbox",
+          "value": "original",
+          "editable": true,
+          "enabled": true,
+          "generation_id": "g1",
+          "target_id": "t_g1_1"
+        }
+      }
+    },
+    {
+      "kind": "action_finished",
+      "wall": "2026-10-06T07:52:51.237665+00:00",
+      "seconds_from_video_start_return": 10.07798,
+      "tick": 1,
+      "action_record": {
+        "tick": 1,
+        "probe_ms": 607,
+        "settle_probes": 0,
+        "settle_ms": 0,
+        "action_settle_probes": 0,
+        "action_settle_ms": 0,
+        "decision_ms": 9352,
+        "input_tokens": 3273,
+        "output_tokens": 0,
+        "operation": "CLICK",
+        "target": "Value",
+        "confidence": 0.109,
+        "elements": 3,
+        "elapsed_ms": 10071,
+        "probabilities": {
+          "1": 0.521,
+          "3": 0.248,
+          "2": 0.23
+        },
+        "candidates": {
+          "1": "Value",
+          "3": "Submit",
+          "2": "Enable editing"
+        },
+        "text": null
+      }
+    },
+    {
+      "kind": "model_selected_action",
+      "wall": "2026-10-06T07:53:04.660807+00:00",
+      "seconds_from_video_start_return": 23.501129,
+      "tick": 2,
+      "move": {
+        "operation": "CLICK",
+        "confidence": 0.0733,
+        "latency_ms": 9645,
+        "usage": {
+          "input_tokens": 3369,
+          "output_tokens": 0
+        },
+        "operation_probabilities": {
+          "CLICK": 0.3355,
+          "TYPE_TEXT": 0.2068,
+          "PRESS_ENTER": 0.1636,
+          "WAIT": 0.0724,
+          "DONE": 0.1359,
+          "BLOCKED": 0.0857
+        },
+        "value_choice": "",
+        "candidate": {
+          "operation": "CLICK",
+          "index": "1",
+          "option_label": ""
+        },
+        "target": {
+          "label": "Value",
+          "role": "textbox",
+          "value": "original",
+          "editable": true,
+          "enabled": true,
+          "generation_id": "g1",
+          "target_id": "t_g1_1"
+        }
+      }
+    },
+    {
+      "kind": "action_finished",
+      "wall": "2026-10-06T07:53:04.662231+00:00",
+      "seconds_from_video_start_return": 23.502547,
+      "tick": 2,
+      "action_record": {
+        "tick": 2,
+        "probe_ms": 3225,
+        "settle_probes": 0,
+        "settle_ms": 0,
+        "action_settle_probes": 3,
+        "action_settle_ms": 1000,
+        "decision_ms": 9645,
+        "input_tokens": 3369,
+        "output_tokens": 0,
+        "operation": "CLICK",
+        "target": "Value",
+        "confidence": 0.073,
+        "elements": 3,
+        "elapsed_ms": 23497,
+        "probabilities": {
+          "1": 0.512,
+          "3": 0.266,
+          "2": 0.222
+        },
+        "candidates": {
+          "1": "Value",
+          "3": "Submit",
+          "2": "Enable editing"
+        },
+        "text": null
+      }
+    },
+    {
+      "kind": "model_selected_action",
+      "wall": "2026-10-06T07:53:18.172640+00:00",
+      "seconds_from_video_start_return": 37.012963,
+      "tick": 3,
+      "move": {
+        "operation": "CLICK",
+        "confidence": 0.0493,
+        "latency_ms": 9740,
+        "usage": {
+          "input_tokens": 3459,
+          "output_tokens": 0
+        },
+        "operation_probabilities": {
+          "CLICK": 0.2626,
+          "TYPE_TEXT": 0.1972,
+          "PRESS_ENTER": 0.2175,
+          "WAIT": 0.0672,
+          "DONE": 0.157,
+          "BLOCKED": 0.0985
+        },
+        "value_choice": "",
+        "candidate": {
+          "operation": "CLICK",
+          "index": "3",
+          "option_label": ""
+        },
+        "target": {
+          "label": "Submit",
+          "role": "button",
+          "value": "",
+          "editable": false,
+          "enabled": true,
+          "generation_id": "g1",
+          "target_id": "t_g1_3"
+        }
+      }
+    },
+    {
+      "kind": "action_finished",
+      "wall": "2026-10-06T07:53:18.172833+00:00",
+      "seconds_from_video_start_return": 37.013147,
+      "tick": 3,
+      "action_record": {
+        "tick": 3,
+        "probe_ms": 3231,
+        "settle_probes": 0,
+        "settle_ms": 0,
+        "action_settle_probes": 3,
+        "action_settle_ms": 1000,
+        "decision_ms": 9740,
+        "input_tokens": 3459,
+        "output_tokens": 0,
+        "operation": "CLICK",
+        "target": "Submit",
+        "confidence": 0.049,
+        "elements": 3,
+        "elapsed_ms": 37009,
+        "probabilities": {
+          "3": 0.522,
+          "2": 0.478
+        },
+        "candidates": {
+          "3": "Submit",
+          "2": "Enable editing"
+        },
+        "text": null
+      }
+    },
+    {
+      "kind": "model_selected_action",
+      "wall": "2026-10-06T07:53:29.642711+00:00",
+      "seconds_from_video_start_return": 48.483034,
+      "tick": 4,
+      "move": {
+        "operation": "PRESS_ENTER",
+        "confidence": 0.0682,
+        "latency_ms": 10272,
+        "usage": {
+          "input_tokens": 3643,
+          "output_tokens": 0
+        },
+        "operation_probabilities": {
+          "CLICK": 0.2613,
+          "TYPE_TEXT": 0.1329,
+          "PRESS_ENTER": 0.2796,
+          "WAIT": 0.0513,
+          "DONE": 0.1153,
+          "BLOCKED": 0.1596
+        },
+        "value_choice": "",
+        "candidate": {
+          "operation": "PRESS_ENTER",
+          "index": "1",
+          "option_label": ""
+        },
+        "target": {
+          "label": "Value",
+          "role": "textbox",
+          "value": "original",
+          "editable": true,
+          "enabled": true,
+          "generation_id": "g2",
+          "target_id": "t_g2_4"
+        }
+      }
+    },
+    {
+      "kind": "action_finished",
+      "wall": "2026-10-06T07:53:29.642912+00:00",
+      "seconds_from_video_start_return": 48.483226,
+      "tick": 4,
+      "action_record": {
+        "tick": 4,
+        "probe_ms": 605,
+        "settle_probes": 0,
+        "settle_ms": 0,
+        "action_settle_probes": 0,
+        "action_settle_ms": 0,
+        "decision_ms": 10272,
+        "input_tokens": 3643,
+        "output_tokens": 0,
+        "operation": "PRESS_ENTER",
+        "target": "Value",
+        "confidence": 0.068,
+        "elements": 3,
+        "elapsed_ms": 48479,
+        "probabilities": {
+          "1": 1.0
+        },
+        "candidates": {
+          "1": "Value"
+        },
+        "text": null
+      }
+    },
+    {
+      "kind": "model_selected_action",
+      "wall": "2026-10-06T07:53:43.985320+00:00",
+      "seconds_from_video_start_return": 62.825644,
+      "tick": 5,
+      "move": {
+        "operation": "PRESS_ENTER",
+        "confidence": 0.0905,
+        "latency_ms": 10594,
+        "usage": {
+          "input_tokens": 3739,
+          "output_tokens": 0
+        },
+        "operation_probabilities": {
+          "CLICK": 0.2314,
+          "TYPE_TEXT": 0.1024,
+          "PRESS_ENTER": 0.3307,
+          "WAIT": 0.058,
+          "DONE": 0.0847,
+          "BLOCKED": 0.1928
+        },
+        "value_choice": "",
+        "candidate": {
+          "operation": "PRESS_ENTER",
+          "index": "1",
+          "option_label": ""
+        },
+        "target": {
+          "label": "Value",
+          "role": "textbox",
+          "value": "original",
+          "editable": true,
+          "enabled": true,
+          "generation_id": "g2",
+          "target_id": "t_g2_4"
+        }
+      }
+    },
+    {
+      "kind": "action_finished",
+      "wall": "2026-10-06T07:53:43.985525+00:00",
+      "seconds_from_video_start_return": 62.825841,
+      "tick": 5,
+      "action_record": {
+        "tick": 5,
+        "probe_ms": 3229,
+        "settle_probes": 0,
+        "settle_ms": 0,
+        "action_settle_probes": 3,
+        "action_settle_ms": 1000,
+        "decision_ms": 10594,
+        "input_tokens": 3739,
+        "output_tokens": 0,
+        "operation": "PRESS_ENTER",
+        "target": "Value",
+        "confidence": 0.09,
+        "elements": 3,
+        "elapsed_ms": 62821,
+        "probabilities": {
+          "1": 1.0
+        },
+        "candidates": {
+          "1": "Value"
+        },
+        "text": null
+      }
+    },
+    {
+      "kind": "model_selected_action",
+      "wall": "2026-10-06T07:53:58.651514+00:00",
+      "seconds_from_video_start_return": 77.491837,
+      "tick": 6,
+      "move": {
+        "operation": "PRESS_ENTER",
+        "confidence": 0.0835,
+        "latency_ms": 10927,
+        "usage": {
+          "input_tokens": 3835,
+          "output_tokens": 0
+        },
+        "operation_probabilities": {
+          "CLICK": 0.2075,
+          "TYPE_TEXT": 0.1069,
+          "PRESS_ENTER": 0.3007,
+          "WAIT": 0.0722,
+          "DONE": 0.0668,
+          "BLOCKED": 0.2458
+        },
+        "value_choice": "",
+        "candidate": {
+          "operation": "PRESS_ENTER",
+          "index": "1",
+          "option_label": ""
+        },
+        "target": {
+          "label": "Value",
+          "role": "textbox",
+          "value": "original",
+          "editable": true,
+          "enabled": true,
+          "generation_id": "g2",
+          "target_id": "t_g2_4"
+        }
+      }
+    },
+    {
+      "kind": "action_finished",
+      "wall": "2026-10-06T07:53:58.651698+00:00",
+      "seconds_from_video_start_return": 77.492012,
+      "tick": 6,
+      "action_record": {
+        "tick": 6,
+        "probe_ms": 3221,
+        "settle_probes": 0,
+        "settle_ms": 0,
+        "action_settle_probes": 3,
+        "action_settle_ms": 1000,
+        "decision_ms": 10927,
+        "input_tokens": 3835,
+        "output_tokens": 0,
+        "operation": "PRESS_ENTER",
+        "target": "Value",
+        "confidence": 0.084,
+        "elements": 3,
+        "elapsed_ms": 77488,
+        "probabilities": {
+          "1": 1.0
+        },
+        "candidates": {
+          "1": "Value"
+        },
+        "text": null
+      }
+    },
+    {
+      "kind": "stall_recovery_start",
+      "wall": "2026-10-06T07:54:02.395491+00:00",
+      "seconds_from_video_start_return": 81.235805,
+      "tick": 6,
+      "trigger": "stalled"
+    },
+    {
+      "kind": "recovery_finished",
+      "wall": "2026-10-06T07:54:05.058233+00:00",
+      "seconds_from_video_start_return": 83.898547,
+      "tick": 6,
+      "recovery_events": [
+        {
+          "kind": "recovery",
+          "trigger": "stalled",
+          "reason": "3 actions without page change",
+          "tick": 6,
+          "attempt": 1,
+          "recent_actions": [
+            {
+              "action": "Value",
+              "kind": "click",
+              "page_changed": false
+            },
+            {
+              "action": "Value",
+              "kind": "click",
+              "page_changed": false
+            },
+            {
+              "action": "Submit",
+              "kind": "click",
+              "page_changed": true
+            },
+            {
+              "action": "Value",
+              "kind": "submit",
+              "page_changed": false
+            },
+            {
+              "action": "Value",
+              "kind": "submit",
+              "page_changed": false
+            },
+            {
+              "action": "Value",
+              "kind": "submit",
+              "page_changed": false
+            }
+          ],
+          "stage": "planner",
+          "fresh_obs": {
+            "url": "http://127.0.0.1:46019/submit/recoverable",
+            "title": "Recovery recoverable",
+            "text": "Recovery recoverable\nLocked\nThe value 'original' is not valid for recoverable. Fix the field and submit again.\nValue\nEnable editing\nSubmit",
+            "scroll": {
+              "y": 0,
+              "height": 720,
+              "viewport": 720
+            },
+            "can_scroll_down": false,
+            "can_scroll_up": false,
+            "elements": [
+              {
+                "node": 1,
+                "selector_hint": "[data-opens1a=\"1\"]",
+                "selector_hint_validated": true,
+                "match_count": 1,
+                "role": "textbox",
+                "label": "Value",
+                "accessible_name": "Value",
+                "text": "Value",
+                "value": "original",
+                "region": "",
+                "editable": true,
+                "visible": true,
+                "enabled": true,
+                "actionable": true,
+                "clickable": true,
+                "generation_id": "g2",
+                "target_id": "t_g2_4"
+              },
+              {
+                "node": 2,
+                "selector_hint": "[data-opens1a=\"2\"]",
+                "selector_hint_validated": true,
+                "match_count": 1,
+                "role": "button",
+                "label": "Enable editing",
+                "accessible_name": "Enable editing",
+                "text": "Enable editing",
+                "value": "",
+                "region": "",
+                "editable": false,
+                "visible": true,
+                "enabled": true,
+                "actionable": true,
+                "clickable": true,
+                "generation_id": "g2",
+                "target_id": "t_g2_5"
+              },
+              {
+                "node": 3,
+                "selector_hint": "[data-opens1a=\"3\"]",
+                "selector_hint_validated": true,
+                "match_count": 1,
+                "role": "button",
+                "label": "Submit",
+                "accessible_name": "Submit",
+                "text": "Submit",
+                "value": "",
+                "region": "",
+                "editable": false,
+                "visible": true,
+                "enabled": true,
+                "actionable": true,
+                "clickable": true,
+                "generation_id": "g2",
+                "target_id": "t_g2_6"
+              }
+            ],
+            "omitted": 0,
+            "page_key": "{\"url\":\"http://127.0.0.1:46019/submit/recoverable\",\"title\":\"Recovery recoverable\",\"scroll\":[0,0,1280,720],\"nodes\":[1,2,3],\"fields\":[[\"1\",\"original\",false,null,false,false]],\"controls\":3}",
+            "settle_ms": 92,
+            "load_ms": 0,
+            "ready_state": "complete",
+            "visibility": "visible",
+            "has_focus": true,
+            "ok": true,
+            "generation_id": "g2"
+          },
+          "plan": "Click \"Enable editing\" (2) to unlock the Value field, then TYPE_TEXT 'hello world' into Value (1), then click Submit (3).",
+          "spent_s": 2.663,
+          "termination": "planned"
+        }
+      ]
+    },
+    {
+      "kind": "model_selected_action",
+      "wall": "2026-10-06T07:54:16.855104+00:00",
+      "seconds_from_video_start_return": 95.695427,
+      "tick": 7,
+      "move": {
+        "operation": "PRESS_ENTER",
+        "confidence": 0.2443,
+        "latency_ms": 11794,
+        "usage": {
+          "input_tokens": 4087,
+          "output_tokens": 0
+        },
+        "operation_probabilities": {
+          "CLICK": 0.1061,
+          "TYPE_TEXT": 0.0883,
+          "PRESS_ENTER": 0.5696,
+          "WAIT": 0.0599,
+          "DONE": 0.0518,
+          "BLOCKED": 0.1243
+        },
+        "value_choice": "",
+        "candidate": {
+          "operation": "PRESS_ENTER",
+          "index": "1",
+          "option_label": ""
+        },
+        "target": {
+          "label": "Value",
+          "role": "textbox",
+          "value": "original",
+          "editable": true,
+          "enabled": true,
+          "generation_id": "g2",
+          "target_id": "t_g2_4"
+        }
+      }
+    },
+    {
+      "kind": "action_finished",
+      "wall": "2026-10-06T07:54:16.855317+00:00",
+      "seconds_from_video_start_return": 95.695631,
+      "tick": 7,
+      "action_record": {
+        "tick": 7,
+        "probe_ms": 0,
+        "settle_probes": 0,
+        "settle_ms": 0,
+        "action_settle_probes": 0,
+        "action_settle_ms": 0,
+        "decision_ms": 11794,
+        "input_tokens": 4087,
+        "output_tokens": 0,
+        "operation": "PRESS_ENTER",
+        "target": "Value",
+        "confidence": 0.244,
+        "elements": 3,
+        "elapsed_ms": 95691,
+        "probabilities": {
+          "1": 1.0
+        },
+        "candidates": {
+          "1": "Value"
+        },
+        "text": null
+      }
+    },
+    {
+      "kind": "model_selected_action",
+      "wall": "2026-10-06T07:54:32.191125+00:00",
+      "seconds_from_video_start_return": 111.031448,
+      "tick": 8,
+      "move": {
+        "operation": "PRESS_ENTER",
+        "confidence": 0.1964,
+        "latency_ms": 11595,
+        "usage": {
+          "input_tokens": 4027,
+          "output_tokens": 0
+        },
+        "operation_probabilities": {
+          "CLICK": 0.1246,
+          "TYPE_TEXT": 0.08,
+          "PRESS_ENTER": 0.4644,
+          "WAIT": 0.0494,
+          "DONE": 0.0408,
+          "BLOCKED": 0.2407
+        },
+        "value_choice": "",
+        "candidate": {
+          "operation": "PRESS_ENTER",
+          "index": "1",
+          "option_label": ""
+        },
+        "target": {
+          "label": "Value",
+          "role": "textbox",
+          "value": "original",
+          "editable": true,
+          "enabled": true,
+          "generation_id": "g2",
+          "target_id": "t_g2_4"
+        }
+      }
+    },
+    {
+      "kind": "action_finished",
+      "wall": "2026-10-06T07:54:32.191319+00:00",
+      "seconds_from_video_start_return": 111.031633,
+      "tick": 8,
+      "action_record": {
+        "tick": 8,
+        "probe_ms": 3222,
+        "settle_probes": 0,
+        "settle_ms": 0,
+        "action_settle_probes": 3,
+        "action_settle_ms": 1000,
+        "decision_ms": 11595,
+        "input_tokens": 4027,
+        "output_tokens": 0,
+        "operation": "PRESS_ENTER",
+        "target": "Value",
+        "confidence": 0.196,
+        "elements": 3,
+        "elapsed_ms": 111027,
+        "probabilities": {
+          "1": 1.0
+        },
+        "candidates": {
+          "1": "Value"
+        },
+        "text": null
+      }
+    },
+    {
+      "kind": "model_selected_action",
+      "wall": "2026-10-06T07:54:47.764608+00:00",
+      "seconds_from_video_start_return": 126.604931,
+      "tick": 9,
+      "move": {
+        "operation": "PRESS_ENTER",
+        "confidence": 0.1538,
+        "latency_ms": 11832,
+        "usage": {
+          "input_tokens": 4123,
+          "output_tokens": 0
+        },
+        "operation_probabilities": {
+          "CLICK": 0.1318,
+          "TYPE_TEXT": 0.082,
+          "PRESS_ENTER": 0.3807,
+          "WAIT": 0.0647,
+          "DONE": 0.0447,
+          "BLOCKED": 0.2961
+        },
+        "value_choice": "",
+        "candidate": {
+          "operation": "PRESS_ENTER",
+          "index": "1",
+          "option_label": ""
+        },
+        "target": {
+          "label": "Value",
+          "role": "textbox",
+          "value": "original",
+          "editable": true,
+          "enabled": true,
+          "generation_id": "g2",
+          "target_id": "t_g2_4"
+        }
+      }
+    },
+    {
+      "kind": "action_finished",
+      "wall": "2026-10-06T07:54:47.764789+00:00",
+      "seconds_from_video_start_return": 126.605103,
+      "tick": 9,
+      "action_record": {
+        "tick": 9,
+        "probe_ms": 3222,
+        "settle_probes": 0,
+        "settle_ms": 0,
+        "action_settle_probes": 3,
+        "action_settle_ms": 1000,
+        "decision_ms": 11832,
+        "input_tokens": 4123,
+        "output_tokens": 0,
+        "operation": "PRESS_ENTER",
+        "target": "Value",
+        "confidence": 0.154,
+        "elements": 3,
+        "elapsed_ms": 126601,
+        "probabilities": {
+          "1": 1.0
+        },
+        "candidates": {
+          "1": "Value"
+        },
+        "text": null
+      }
+    },
+    {
+      "kind": "stall_recovery_start",
+      "wall": "2026-10-06T07:54:51.500372+00:00",
+      "seconds_from_video_start_return": 130.340686,
+      "tick": 9,
+      "trigger": "stalled"
+    },
+    {
+      "kind": "recovery_finished",
+      "wall": "2026-10-06T07:54:53.757685+00:00",
+      "seconds_from_video_start_return": 132.597999,
+      "tick": 9,
+      "recovery_events": [
+        {
+          "kind": "recovery",
+          "trigger": "stalled",
+          "reason": "3 actions without page change",
+          "tick": 9,
+          "attempt": 2,
+          "recent_actions": [
+            {
+              "action": "Value",
+              "kind": "click",
+              "page_changed": false
+            },
+            {
+              "action": "Value",
+              "kind": "click",
+              "page_changed": false
+            },
+            {
+              "action": "Submit",
+              "kind": "click",
+              "page_changed": true
+            },
+            {
+              "action": "Value",
+              "kind": "submit",
+              "page_changed": false
+            },
+            {
+              "action": "Value",
+              "kind": "submit",
+              "page_changed": false
+            },
+            {
+              "action": "Value",
+              "kind": "submit",
+              "page_changed": false
+            },
+            {
+              "action": "Value",
+              "kind": "submit",
+              "page_changed": false
+            },
+            {
+              "action": "Value",
+              "kind": "submit",
+              "page_changed": false
+            },
+            {
+              "action": "Value",
+              "kind": "submit",
+              "page_changed": false
+            }
+          ],
+          "stage": "planner",
+          "fresh_obs": {
+            "url": "http://127.0.0.1:46019/submit/recoverable",
+            "title": "Recovery recoverable",
+            "text": "Recovery recoverable\nLocked\nThe value 'original' is not valid for recoverable. Fix the field and submit again.\nValue\nEnable editing\nSubmit",
+            "scroll": {
+              "y": 0,
+              "height": 720,
+              "viewport": 720
+            },
+            "can_scroll_down": false,
+            "can_scroll_up": false,
+            "elements": [
+              {
+                "node": 1,
+                "selector_hint": "[data-opens1a=\"1\"]",
+                "selector_hint_validated": true,
+                "match_count": 1,
+                "role": "textbox",
+                "label": "Value",
+                "accessible_name": "Value",
+                "text": "Value",
+                "value": "original",
+                "region": "",
+                "editable": true,
+                "visible": true,
+                "enabled": true,
+                "actionable": true,
+                "clickable": true,
+                "generation_id": "g2",
+                "target_id": "t_g2_4"
+              },
+              {
+                "node": 2,
+                "selector_hint": "[data-opens1a=\"2\"]",
+                "selector_hint_validated": true,
+                "match_count": 1,
+                "role": "button",
+                "label": "Enable editing",
+                "accessible_name": "Enable editing",
+                "text": "Enable editing",
+                "value": "",
+                "region": "",
+                "editable": false,
+                "visible": true,
+                "enabled": true,
+                "actionable": true,
+                "clickable": true,
+                "generation_id": "g2",
+                "target_id": "t_g2_5"
+              },
+              {
+                "node": 3,
+                "selector_hint": "[data-opens1a=\"3\"]",
+                "selector_hint_validated": true,
+                "match_count": 1,
+                "role": "button",
+                "label": "Submit",
+                "accessible_name": "Submit",
+                "text": "Submit",
+                "value": "",
+                "region": "",
+                "editable": false,
+                "visible": true,
+                "enabled": true,
+                "actionable": true,
+                "clickable": true,
+                "generation_id": "g2",
+                "target_id": "t_g2_6"
+              }
+            ],
+            "omitted": 0,
+            "page_key": "{\"url\":\"http://127.0.0.1:46019/submit/recoverable\",\"title\":\"Recovery recoverable\",\"scroll\":[0,0,1280,720],\"nodes\":[1,2,3],\"fields\":[[\"1\",\"original\",false,null,false,false]],\"controls\":3}",
+            "settle_ms": 92,
+            "load_ms": 0,
+            "ready_state": "complete",
+            "visibility": "visible",
+            "has_focus": true,
+            "ok": true,
+            "generation_id": "g2"
+          },
+          "plan": "Click \"Enable editing\" (index 2) to unlock the Value field, then TYPE_TEXT 'hello world' into Value (index 1), then click Submit (index 3). If Submit does nothing, use PRESS_ENTER on Value.",
+          "spent_s": 4.92,
+          "termination": "planned"
+        }
+      ]
+    },
+    {
+      "kind": "trial_end",
+      "wall": "2026-10-06T07:55:11.874252+00:00",
+      "seconds_from_video_start_return": 150.71457
+    }
+  ],
+  "trial": {
+    "profile": "match-legacy",
+    "task": "recoverable",
+    "arm": "on",
+    "repeat": 0,
+    "verified": false,
+    "terminal": "BLOCKED",
+    "errored": false,
+    "error": null,
+    "model": "english",
+    "platform": "Linux-6.8.0-142-generic-x86_64-with-glibc2.39",
+    "elapsed_s": 151.16,
+    "recovery_attempts": 2,
+    "recovery_spent_s": 4.92,
+    "recovery_failed": false,
+    "recovery_termination": "planned",
+    "recovery_events": [
+      {
+        "trigger": "stalled",
+        "stage": "planner",
+        "termination": "planned",
+        "tick": 6,
+        "attempt": 1,
+        "spent_s": 2.663,
+        "error": null
+      },
+      {
+        "trigger": "stalled",
+        "stage": "planner",
+        "termination": "planned",
+        "tick": 9,
+        "attempt": 2,
+        "spent_s": 4.92,
+        "error": null
+      }
+    ],
+    "planner_attempts": 2,
+    "planner_failures": 0,
+    "decision_calls": 10,
+    "decision_failures": 0,
+    "decision_retries": 0,
+    "decision_ms_total": 108986,
+    "decision_ms_mean": 10898.6,
+    "decision_input_tokens": 37998,
+    "decision_usage_known": true,
+    "unknown_decision_calls": 0,
+    "chat_calls": 3,
+    "chat_calls_observed": 3,
+    "chat_failures": 0,
+    "chat_ms_total": 5711,
+    "chat_input_tokens": 2047,
+    "chat_output_tokens": 127,
+    "chat_cache_tokens": 0,
+    "usage_known": true,
+    "unknown_chat_calls": 0,
+    "jev_input_tokens": 0,
+    "cost_usd": null,
+    "cost_basis": "unknown: live provider pricing is not verified and CHAT_USD_PER_M_* was not set",
+    "wasted_actions": 8,
+    "steps": 9,
+    "oracle": {
+      "trial": "trial-0004",
+      "task": "recoverable",
+      "verified": false,
+      "submissions": [
+        {
+          "trial": "trial-0004",
+          "task": "recoverable",
+          "fields": {
+            "value": "original"
+          }
+        }
+      ]
+    }
+  }
+}
