@@ -1,0 +1,89 @@
+"""Grid composition for the multi-snake recording."""
+
+import math
+
+from .ui import AMBER, BG, CYAN, DIM, FG, GREEN, MUTED, RED, Canvas
+
+CELL_W = 44
+CELL_H = 22
+TOP_BAR = 5
+
+
+def _draw_cell(c, ox, oy, g):
+    game = g["game"]
+    decision = g.get("decision") or {}
+    alive, won = game.get("alive", True), game.get("won", False)
+    intervened = decision.get("intervened", False)
+    border = RED if not alive else (GREEN if won else (AMBER if intervened else DIM))
+    bw, bh = game["width"], game["height"]
+
+    c.put(oy, ox, f"#{g['seed']} r{g.get('round', 1)}", MUTED)
+    c.put(oy, ox + 12, f"S{game['score']}", FG)
+    c.put(oy, ox + 18, f"{g.get('steps', 0)}st", MUTED)
+    if intervened:
+        c.put(oy, ox + 27, "SHIELD", AMBER)
+    if not alive:
+        c.put(oy, ox + 27, "DEAD", RED)
+    if won:
+        c.put(oy, ox + 27, "CLEAR", GREEN)
+
+    c.put(oy + 1, ox, "┌" + "─" * bw + "┐", border)
+    c.put(oy + 2 + bh, ox, "└" + "─" * bw + "┘", border)
+    for y in range(bh):
+        c.put(oy + 2 + y, ox, "│", border)
+        c.put(oy + 2 + y, ox + bw + 1, "│", border)
+        c.put(oy + 2 + y, ox + 1, "·" * bw, "#13272e")
+    body = game["body"]
+    for index, (x, y) in enumerate(body):
+        fraction = 1 - index / max(1, len(body))
+        color = (
+            "#dcfff0"
+            if index == 0
+            else f"#{int(18 + 64 * fraction):02x}{int(73 + 150 * fraction):02x}{int(57 + 102 * fraction):02x}"
+        )
+        c.put(oy + 2 + y, ox + 1 + x, "█", color)
+    if game.get("food") is not None:
+        fx, fy = game["food"]
+        c.put(oy + 2 + fy, ox + 1 + fx, "●", AMBER)
+
+    probs = decision.get("probabilities") or {}
+    executed = decision.get("executed", "—")
+    rx = ox + bw + 3
+    for index, direction in enumerate(("UP", "DOWN", "LEFT", "RIGHT")):
+        p = probs.get(direction, 0)
+        selected = direction == executed
+        color = GREEN if selected else MUTED
+        c.put(oy + 2 + index * 3, rx, direction[:2], color)
+        c.put(oy + 2 + index * 3, rx + 3, "░" * 8, DIM)
+        c.put(oy + 2 + index * 3, rx + 3, "█" * round(p * 8), color)
+        c.put(oy + 2 + index * 3, rx + 12, f"{p:.2f}"[1:], color)
+    risk = decision.get("dead_end_risk", 0)
+    c.put(oy + 14, rx, "risk", MUTED)
+    c.put(oy + 14, rx + 5, "░" * 6, DIM)
+    c.put(oy + 14, rx + 5, "█" * round(risk * 6), AMBER if risk < 0.5 else RED)
+    c.put(oy + 15, rx, "food", MUTED)
+    fr = decision.get("food_reachable", 0)
+    c.put(oy + 15, rx + 5, "░" * 6, DIM)
+    c.put(oy + 15, rx + 5, "█" * round(fr * 6), CYAN)
+
+
+def compose_multi(games, stats, cols=4):
+    n = len(games)
+    rows = math.ceil(n / cols)
+    width = 6 + cols * CELL_W
+    height = TOP_BAR + rows * CELL_H + 2
+    c = Canvas(width, height)
+    c.put(1, 3, "SYSTEM1-OMNI  ×  LAYA NATIVE  ×  H800", MUTED)
+    c.put(
+        2,
+        3,
+        f"{stats['alive']}/{n} alive · {stats['dps']:.0f} decisions/s · "
+        f"{stats['mean_ms']:.1f} ms mean · score {stats['score']} · {stats['clock']}",
+        GREEN,
+    )
+    c.put(3, 3, "─" * (width - 6), DIM)
+    for i, g in enumerate(games):
+        ox = 3 + (i % cols) * CELL_W
+        oy = TOP_BAR + (i // cols) * CELL_H
+        _draw_cell(c, ox, oy, g)
+    return c
