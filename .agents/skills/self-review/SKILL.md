@@ -16,6 +16,8 @@ cover the changed behavior, including failure paths and a regression case for a
 fix. Match docs and commands to the implementation. Run the applicable checks in
 `CONTRIBUTING.md`; report exact commands, outcomes, and skipped checks with reasons.
 Documentation-only changes need link/example/claim checks, not unrelated model runs.
+For use-case recipes, check the [recipe template](../../../recipes/TEMPLATE.md): commands reach the named
+agent/backend, result checks can detect failure, and each profile's validation status matches its evidence.
 
 This skill prepares a local contributor report. It does not itself authorize
 edits, commits, pushes, external posts, paid model calls, downloads, or changes to
@@ -38,9 +40,12 @@ intervention in the results. Report repetitions and variation; one successful
 demo is not a task-success rate. Mark missing metrics unmeasured, and remove or
 qualify unsupported claims rather than manufacturing a comparison.
 
-For visible workflows, prefer a short real recording (about 20–45 seconds) or
-screenshots when they explain the change. Show the relevant input, action sequence,
-and result, with failures or human intervention visible. Label cuts, replay speed,
+Use [CONTRIBUTING.md's video guide](../../../CONTRIBUTING.md#agent-video-demos)
+to prepare, record and attach an agent demo. For agent behavior changes, prefer a
+short real video (about 20–45 seconds); a terminal recording works for text agents
+and rails. Screenshots can support the clip or explain a recording gap. Show the
+relevant input, action sequence, and result, with failures or human intervention
+visible. Label cuts, replay speed,
 and elapsed timing honestly; link a fuller trace when a clip omits context. Do not
 stage screens or present a replay as a live run. A replay must identify the source
 run/commit, workload, and speed; a historical or upstream model demo is not proof
@@ -74,9 +79,13 @@ and generated artwork as illustrations; never fabricate screens, results, or
 performance claims. Link durable, reviewer-accessible artifacts rather than local
 paths. If rights or safe disclosure are unresolved, omit the asset and state why.
 
-A shared demo using System1-Omni can be useful when the PR actually integrates it.
-It is optional: pin both repositories and keep agent-task evidence separate from
-serving/kernel measurements.
+Check System1-Omni's current model, modality and hardware support as described in
+the video guide. Try a supported serving path when the branch has a compatible
+client; otherwise record the missing integration or configuration. Pin both
+repositories and verify the actual worker/frontend from run evidence. Keep
+agent-task evidence separate from serving/kernel measurements. Do not add an
+unrequested backend integration or run outside the authorized resources/budget
+merely to produce a demo.
 
 ## Report
 

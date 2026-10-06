@@ -144,6 +144,7 @@ interface fits: [docs/architecture.md](docs/architecture.md), [docs/decision-mod
 - [docs/benchmarks.md](docs/benchmarks.md): the six runs above, the Google Flights driver comparison and its 2026-09-23 rerun, a longer game, the guard rail.
 - [docs/skills.md](docs/skills.md): the caller skill, the builder skill, what to delegate.
 - [docs/agents.md](docs/agents.md): every agent with its flags, run command and extra.
+- [Agent use-case recipes](recipes/README.md): setup, run commands, result checks and demos for complete tasks.
 - [docs/architecture.md](docs/architecture.md) and [docs/decision-models.md](docs/decision-models.md): the fronts, the model slot, the model interface, adding a backend.
 - [docs/browser-front.md](docs/browser-front.md): the browser policy, decision by decision.
 - [docs/configuration.md](docs/configuration.md): environment variables, defaults and reader subsystems in one table.
