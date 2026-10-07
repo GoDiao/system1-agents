@@ -30,7 +30,7 @@ def load_multi(path):
 def backend_caption(metadata):
     """The caption comes from the recorded backend metadata, never from a
     constant; an unknown engine stays unknown."""
-    engine = str((metadata.get("model") or {}).get("engine_label", "unknown")).strip()
+    engine = str((metadata.get("model") or {}).get("engine_label") or "unknown").strip()
     if not engine or engine.lower() == "unknown":
         return "SYSTEM1-OMNI  ×  UNKNOWN ENGINE"
     return f"SYSTEM1-OMNI  ×  {engine.upper()}"
@@ -44,6 +44,7 @@ def main(argv=None):
     parser.add_argument("--seconds", type=float, default=30)
     parser.add_argument("--fps", type=int, default=30)
     parser.add_argument("--cols", type=int, default=4)
+    parser.add_argument("--font")
     args = parser.parse_args()
     if args.output.exists():
         parser.error("Output already exists; choose a new filename")
@@ -94,7 +95,7 @@ def main(argv=None):
 
     advance(start)
     canvas = compose_multi(games_at(), stats_at(start), args.cols, caption)
-    raster = TerminalRaster(canvas.width, canvas.height, width=1920, height=1080)
+    raster = TerminalRaster(canvas.width, canvas.height, width=1920, height=1080, font=args.font)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     if args.output.suffix == ".png":
         raster.render(canvas).save(args.output)
@@ -121,7 +122,7 @@ def main(argv=None):
     sidecar = {
         "source_recording": args.recording.name,
         "source_sha256": hashlib.sha256(args.recording.read_bytes()).hexdigest(),
-        "model": metadata["model"],
+        "model": metadata.get("model") or {},
         "playback_speed": 1,
         "video_fps": args.fps,
         "video_frames": count,

@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import shutil
 import subprocess
 from bisect import bisect_right
@@ -39,6 +40,7 @@ class TerminalRaster:
             else [
                 Path("/System/Library/Fonts/Menlo.ttc"),
                 Path("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"),
+                Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts/consola.ttf",
             ]
         )
         font_path = next((p for p in choices if p.is_file()), None)

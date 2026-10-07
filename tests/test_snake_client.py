@@ -62,6 +62,15 @@ class CountingPolicy:
         return SimpleNamespace(executed=(moves or game.moves())[0].direction)
 
 
+class RightPolicy:
+    def __init__(self):
+        self.calls = 0
+
+    def decide(self, game):
+        self.calls += 1
+        return SimpleNamespace(executed="RIGHT")
+
+
 class TestWarmup(unittest.TestCase):
     def test_warmup_stops_when_the_warm_game_wins(self):
         # 4x4 board, length 15, seed 0, RIGHT: eating the last cell wins in one step,
@@ -74,6 +83,13 @@ class TestWarmup(unittest.TestCase):
         self.assertTrue(game.alive)
         self.assertEqual(game.moves(), [])
         warm_up(ExplodingPolicy(), game)
+
+    def test_warmup_stops_after_winning_during_warmup(self):
+        # The same 4x4 seed-0 game wins on the very first RIGHT decision; the
+        # warmup must not ask for another decision after the win.
+        policy = RightPolicy()
+        warm_up(policy, SnakeGame(4, 4, 0, 15))
+        self.assertEqual(policy.calls, 1)
 
     def test_warmup_respects_the_step_budget(self):
         policy = CountingPolicy()
@@ -96,7 +112,10 @@ class TestMultiGridRaster(unittest.TestCase):
 
     def test_raster_keeps_every_row_inside_the_image(self):
         canvas = compose_multi([a_frame(1000 + i) for i in range(16)], stats(waiting=0), 4, "C")
-        raster = TerminalRaster(canvas.width, canvas.height, width=1920, height=1080)
+        try:
+            raster = TerminalRaster(canvas.width, canvas.height, width=1920, height=1080)
+        except FileNotFoundError:
+            self.skipTest("no monospace font available on this host")
         self.assertLessEqual(raster.y + canvas.height * raster.ch, 1080)
 
     def test_pending_slots_render_a_placeholder(self):
@@ -159,7 +178,8 @@ class TestBackendCaption(unittest.TestCase):
         self.assertNotIn("H800", caption)
 
     def test_unknown_engine_stays_unknown(self):
-        for metadata in ({}, {"model": {}}, {"model": {"engine_label": "unknown"}}):
+        cases = ({}, {"model": {}}, {"model": {"engine_label": "unknown"}}, {"model": {"engine_label": None}})
+        for metadata in cases:
             self.assertIn("UNKNOWN ENGINE", backend_caption(metadata))
 
     def test_native_recording_does_not_claim_hardware_it_did_not_record(self):

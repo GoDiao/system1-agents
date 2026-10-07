@@ -97,8 +97,8 @@ PY
 ```
 
 `interventions` counts cycle-shield overrides and is expected to be small but nonzero on long runs;
-`deaths == 0` with the shield on is the recorded behavior. Re-render the recording once
-(`export ... --output check.png`) to confirm every frame round-trips through the renderer.
+`deaths == 0` with the shield on is the recorded behavior. Re-render one frame of the recording
+(`export ... --output check.png`) to confirm the file round-trips through the renderer.
 
 ## Demo and validation
 
