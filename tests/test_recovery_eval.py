@@ -10,7 +10,9 @@ from __future__ import annotations
 import asyncio
 import tempfile
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import TestCase, mock
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urlparse
@@ -25,6 +27,7 @@ from evals.recovery.fixture import (
     FormTask,
     page_html,
     post_submit,
+    result_html,
     start_fixture,
     validated_tasks,
 )
@@ -84,6 +87,27 @@ class TestFixtureOracle(TestCase):
             self.assertFalse(fixture.verified(RECOVERABLE), "a real submit with the wrong value is not completion")
             self.assertEqual(len(fixture.submissions(NORMAL)), 1)
             self.assertEqual(fixture.oracle_state(NORMAL)["verified"], True)
+
+    def test_the_success_page_escapes_the_submitted_value_as_data(self) -> None:
+        hostile = "<script>alert('x')</script>"
+        with start_fixture() as fixture:
+            status, body = post_submit(fixture, NORMAL, hostile)
+            self.assertEqual(status, 200)
+            self.assertNotIn(hostile, body, "model text must never run in the fixture origin")
+            self.assertIn("&lt;script&gt;", body)
+            self.assertFalse(fixture.verified(NORMAL), "the hostile value does not match the expected one")
+            self.assertEqual(
+                fixture.submissions(NORMAL)[0]["fields"]["value"],
+                hostile,
+                "the oracle records the raw submitted value, independent of the rendered page",
+            )
+
+    def test_result_html_escapes_both_the_task_name_and_the_value(self) -> None:
+        body = result_html("<b>task</b>", "<script>x</script>")
+        self.assertIn("&lt;b&gt;", body)
+        self.assertIn("&lt;script&gt;", body)
+        self.assertNotIn("<b>", body)
+        self.assertNotIn("<script>", body)
 
 
 class TestValidatedFixtureSubmission(TestCase):
@@ -427,3 +451,80 @@ class TestRunEvalServesItsOwnTasks(TestCase):
             for row in seen:
                 self.assertEqual(row["status"], 200)
                 self.assertEqual(row["body"], page_html(task), "the served page is exactly the requested task's page")
+
+
+class TestScriptedPlayTrialKeepsOracleAndErrorIndependent(TestCase):
+    """A successful POST and a run failure are different facts: keep both, never let one clear the other."""
+
+    def _play(self, fixture, answer: dict, *, post: bool = True) -> tuple:
+        async def fake_browse(spec, policy, **kwargs):  # noqa: ANN001, ANN003 - mirrors browse's signature loosely
+            if post:
+                post_submit(fixture, NORMAL, NORMAL.expected_value)
+            return answer
+
+        with mock.patch("evals.recovery.runner.browse.browse", fake_browse):
+            with tempfile.TemporaryDirectory() as tmp:
+                return asyncio.run(
+                    runner.play_trial(fixture, NORMAL, "on", 0, config=EvalConfig(timeout_s=5.0), logs_dir=Path(tmp))
+                )
+
+    def test_a_verified_post_then_a_returned_timeout_is_both_verified_and_errored(self) -> None:
+        with start_fixture() as fixture:
+            episode, record = self._play(fixture, {"status": None, "error": "timeout after 120 s"})
+        self.assertTrue(record.verified, "the fixture recorded the real POST")
+        self.assertTrue(record.errored, "the run still reported a timeout: verified and errored are independent")
+        self.assertEqual(record.terminal, "verified")
+        self.assertEqual(episode.error, "timeout after 120 s")
+
+    def test_a_played_blocked_status_is_score_zero_not_a_harness_error(self) -> None:
+        with start_fixture() as fixture:
+            episode, record = self._play(
+                fixture, {"status": "BLOCKED", "error": "jev recovery give_up: spent"}, post=False
+            )
+        self.assertFalse(record.verified)
+        self.assertEqual(record.terminal, "BLOCKED")
+        self.assertFalse(record.errored, "a played BLOCKED keeps score 0; a policy message is not a harness error")
+        self.assertIsNone(episode.error)
+
+    def test_a_played_blocked_episode_without_a_run_error_is_not_errored(self) -> None:
+        with start_fixture() as fixture:
+            _, record = self._play(fixture, {"status": "BLOCKED"}, post=False)
+        self.assertFalse(record.verified)
+        self.assertFalse(record.errored, "a played BLOCKED episode is a score 0, not a raised trial")
+
+
+class TestRunEvalRunIdIsUnique(TestCase):
+    """The clock alone has one-second precision; two runs in the same second must not share logs or summaries."""
+
+    def _run(self, results_dir: Path, suffix: str) -> object:
+        fixed = datetime(2026, 10, 7, 12, 0, 0)
+
+        class _Clock:
+            @staticmethod
+            def now() -> datetime:
+                return fixed
+
+        with (
+            mock.patch.object(runner, "started_runner", _noop_runner),
+            mock.patch("evals.recovery.runner.browse.browse", _recording_browse((NORMAL,), [])),
+            mock.patch.object(runner, "datetime", _Clock),
+            mock.patch.object(runner, "uuid4", return_value=SimpleNamespace(hex=suffix)),
+            mock.patch.object(runner, "HOME", results_dir),
+        ):
+            return asyncio.run(
+                run_eval(
+                    tasks=(NORMAL,),
+                    arms=("off",),
+                    repeat=1,
+                    config=EvalConfig(timeout_s=5.0),
+                    results_dir=results_dir / "results",
+                )
+            )
+
+    def test_two_runs_in_the_same_second_get_distinct_output_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            first = self._run(Path(tmp), "abc123")
+            second = self._run(Path(tmp), "def456")
+        self.assertNotEqual(first.paired_dir, second.paired_dir)
+        self.assertTrue(first.paired_dir.name.endswith("abc123"))
+        self.assertTrue(second.paired_dir.name.endswith("def456"))

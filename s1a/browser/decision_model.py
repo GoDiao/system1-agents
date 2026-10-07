@@ -43,7 +43,13 @@ from s1a.browser.action_space import (
 )
 from s1a.browser.probe_js import POLICY_PROBE_JS, STAMP_ATTRIBUTE
 from s1a.decision_models import DecisionModel
-from s1a.recovery import RecoveryBudget, RecoveryExhausted, RecoveryLimits, recovery_next_action
+from s1a.recovery import (
+    RecoveryBudget,
+    RecoveryExhausted,
+    RecoveryLimits,
+    recovery_failure_reason,
+    recovery_next_action,
+)
 from s1a.spec import BrowserAgentSpec
 from s1a.tool.rethink import draft_plan
 
@@ -319,6 +325,7 @@ class BrowserDecisionModel(Model):
                 "decision_ms": move.latency_ms,  # the key is the artifact contract: replay and the table read it
                 "input_tokens": move.usage.input_tokens,
                 "output_tokens": move.usage.output_tokens,
+                "usage_known": move.usage.known,
                 "operation": move.operation,
                 "target": move.candidate.item.get("label") if move.candidate else None,
                 "confidence": round(move.confidence, 3),
@@ -444,8 +451,10 @@ class BrowserDecisionModel(Model):
             self._stop_recovery(run, event, stage="refresh", termination="timeout", error="recovery refresh timed out")
             return None
         except Exception as exc:  # noqa: BLE001 - any refresh failure is a clean terminal, never a retry loop
+            # Only the stable reason is kept: a provider error can echo a response body or a credential.
+            reason = recovery_failure_reason(exc)
             self._stop_recovery(
-                run, event, stage="refresh", termination="error", error=f"recovery refresh failed: {exc}"
+                run, event, stage="refresh", termination="error", error=f"recovery refresh failed: {reason}"
             )
             return None
         finally:
@@ -474,7 +483,10 @@ class BrowserDecisionModel(Model):
             if not (plan or "").strip():
                 # A blank answer is a planner failure, not a plan: the turn would otherwise get no guidance and the
                 # event would read as planned. ``draft_plan`` strips, so None/whitespace arrives here as "".
-                raise ValueError("planner returned an empty plan")
+                self._stop_recovery(
+                    run, event, stage="planner", termination="error", error="planner returned an empty plan"
+                )
+                return None
         except asyncio.CancelledError:
             self._stop_recovery(run, event, stage="planner", termination="cancelled", error="recovery cancelled")
             raise
@@ -482,8 +494,10 @@ class BrowserDecisionModel(Model):
             self._stop_recovery(run, event, stage="planner", termination="timeout", error="recovery planner timed out")
             return None
         except Exception as exc:  # noqa: BLE001 - any planner failure is a clean terminal, never a retry loop
+            # Only the stable reason is kept: a provider error can echo a response body or a credential.
+            reason = recovery_failure_reason(exc)
             self._stop_recovery(
-                run, event, stage="planner", termination="error", error=f"recovery planner failed: {exc}"
+                run, event, stage="planner", termination="error", error=f"recovery planner failed: {reason}"
             )
             return None
         finally:

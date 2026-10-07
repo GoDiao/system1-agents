@@ -26,7 +26,6 @@ import os
 import platform
 import re
 import shutil
-import statistics
 import subprocess
 import sys
 import time
@@ -48,6 +47,15 @@ from s1a.tool import loop
 from s1a.tool.models import placeholder_model
 from s1a.tool.rethink import progress_digest
 
+from evals.recovery.summary import (
+    coverage,
+    mean,
+    on_minus_off_completion_rate,
+    pair_outcomes,
+    paired_completion_line,
+    summary_tables,
+)
+
 REPO = Path(__file__).resolve().parent.parent
 FIXTURE_SOURCE = REPO / "tests" / "fixtures" / "desktop_recovery" / "S1AFixture.cs"
 TASKS = ("normal", "recoverable", "permanent")
@@ -60,16 +68,11 @@ DRIVER_CHANNEL = "not inferred from the executable path"
 DEFAULT_DRIVER_VERSION = "unknown"
 ORACLE_WAIT_S = 25.0
 WINDOW_WAIT_S = 15.0  # the fixture writes its oracle before its window is on screen; wait for the window
-LAUNCH_ATTEMPTS = 3  # WSL interop can refuse a launch with a transient EINVAL; retry a dead attempt only
 CSC_CANDIDATES = (
     r"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe",
     "/mnt/c/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe",
 )
 TASKKILL = "/mnt/c/Windows/System32/taskkill.exe"
-
-_NEXT_ACTION = re.compile(r'"next_action"\s*:\s*"((?:[^"\\]|\\.)*)"')
-_STATUS = re.compile(r'"status"\s*:\s*"([^"]*)"')
-_REASON = re.compile(r'"reason"\s*:\s*"((?:[^"\\]|\\.)*)"')
 
 
 @dataclass(frozen=True)
@@ -263,55 +266,37 @@ def build_fixture(source: Path, out_exe: Path, *, csc: str, log: Path) -> Path:
 def launch_fixture(
     exe: Path, mode: str, run_id: str, outdir: Path, log: Path
 ) -> tuple[subprocess.Popen, dict[str, Any]]:
-    """Start this trial's own fixture process and wait for its startup oracle; the caller kills only its pid.
-
-    WSL interop occasionally refuses a launch with a transient ``OSError`` (EINVAL) or the process dies before it
-    writes the oracle; a dead attempt is retried, and the unique exe name means no stale window can be mistaken for it.
-    """
+    """Start one fixture process and wait for its startup oracle; the caller cleans up only this pid."""
     outdir.mkdir(parents=True, exist_ok=True)
     log.parent.mkdir(parents=True, exist_ok=True)
     oracle_file = outdir / "result.json"
-    last_error = "no attempt"
-    for attempt in range(1, LAUNCH_ATTEMPTS + 1):
+    if oracle_file.exists():
+        oracle_file.unlink()
+    with log.open("wb") as handle:
+        proc = subprocess.Popen(
+            [str(exe), "--mode", mode, "--id", run_id, "--outdir", to_windows_path(outdir)],
+            stdout=handle,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    deadline = time.monotonic() + ORACLE_WAIT_S
+    while time.monotonic() < deadline:
         if oracle_file.exists():
-            oracle_file.unlink()
-        handle = log.open("ab" if attempt > 1 else "wb")
-        try:
-            proc = subprocess.Popen(
-                [str(exe), "--mode", mode, "--id", run_id, "--outdir", to_windows_path(outdir)],
-                stdout=handle,
-                stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-        except OSError as exc:
-            handle.close()
-            last_error = f"launch attempt {attempt}: {exc}"
-            time.sleep(0.5)
-            continue
-        handle.close()
-        deadline = time.monotonic() + ORACLE_WAIT_S
-        while time.monotonic() < deadline:
-            if oracle_file.exists():
-                try:
-                    return proc, json.loads(oracle_file.read_text(encoding="utf-8-sig"))
-                except ValueError:
-                    pass
-            if proc.poll() is not None:
-                break  # the process died without writing the oracle: the attempt can be retried
-            time.sleep(0.25)
-        last_error = f"attempt {attempt} wrote no oracle (returncode={proc.poll()})"
-        if proc.poll() is None:  # alive but never wrote: kill and fail rather than leak a second fixture
-            proc.terminate()
             try:
-                proc.wait(timeout=5)
-            except Exception:
-                pass
-            handle.close()
-            raise RuntimeError(f"fixture {mode!r} stayed alive without writing {oracle_file}")
-        handle.close()
-        time.sleep(0.5)
-    raise RuntimeError(f"fixture {mode!r} never wrote {oracle_file}: {last_error}")
+                return proc, json.loads(oracle_file.read_text(encoding="utf-8-sig"))
+            except ValueError:
+                pass  # the fixture is still writing it; keep waiting until the deadline
+        if proc.poll() is not None:
+            raise RuntimeError(f"fixture {mode!r} exited (returncode={proc.poll()}) without writing {oracle_file}")
+        time.sleep(0.25)
+    if proc.poll() is None:  # alive but never wrote: kill it rather than leak a fixture
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except Exception:
+            pass
+    raise RuntimeError(f"fixture {mode!r} never wrote {oracle_file}")
 
 
 async def wait_for_window(driver: CuaDriver, app_name: str, pid: int) -> Any:
@@ -362,14 +347,15 @@ def read_events(outdir: Path) -> list[dict[str, Any]]:
     return events
 
 
-def extract_field(output: str, pattern: re.Pattern[str]) -> str | None:
-    match = pattern.search(output or "")
-    if match is None:
-        return None
-    try:
-        return json.loads('"' + match.group(1) + '"')
-    except ValueError:
-        return match.group(1)
+def _terminal(episode: Episode) -> dict[str, Any]:
+    """The runtime's structured terminal, consumed directly; never regex-parsed from the truncated output.
+
+    The runtime records the whole stop summary in ``extra['terminal']`` so a long reason or next action survives the
+    terminal output's short budget. An episode that never reached a stop message carries ``None`` there, which is an
+    empty summary here, not a fabricated one.
+    """
+    terminal = episode.extra.get("terminal")
+    return terminal if isinstance(terminal, dict) else {}
 
 
 def count_wasted_actions(views: list[dict[str, Any]], steps: int) -> int:
@@ -382,12 +368,14 @@ def count_wasted_actions(views: list[dict[str, Any]], steps: int) -> int:
     return wasted
 
 
-def _recovery_fields(episode: Episode, output: str, *, bounded: bool) -> dict[str, Any]:
+def _recovery_fields(episode: Episode, *, bounded: bool) -> dict[str, Any]:
+    """Read recovery accounting from structured terminal fields and recorded events."""
     events = [event for event in (episode.extra.get("rethinks") or []) if event.get("kind") == "stall"]
     attempts = [int(event.get("attempt") or 0) for event in events]
     spent = [float(event.get("spent_s") or 0.0) for event in events]
-    status = extract_field(output, _STATUS)
-    reason = extract_field(output, _REASON) or episode.error
+    terminal = _terminal(episode)
+    status = terminal.get("status")
+    reason = terminal.get("reason") or episode.error
     negative = {"give_up", "error", "timeout", "cancelled"}
     failed = bounded and (
         episode.error is not None
@@ -396,12 +384,13 @@ def _recovery_fields(episode: Episode, output: str, *, bounded: bool) -> dict[st
         or any(event.get("termination") in negative for event in events)
     )
     source: str | None = None
+    # The next action is retained from a recovery event or the runtime's terminal; the evaluator never invents one.
     action = next((event["next_action"] for event in reversed(events) if event.get("next_action")), None)
     if action is not None:
         source = "event"
     else:
-        terminal_action = extract_field(output, _NEXT_ACTION)
-        if terminal_action is not None:
+        terminal_action = terminal.get("next_action")
+        if terminal_action:
             action, source = terminal_action, "terminal"
     return {
         "recovery_attempts": max(attempts or [0]),
@@ -425,13 +414,6 @@ def _episode_to_dict(episode: Episode) -> dict[str, Any]:
     data = asdict(episode)
     data["frames_dir"] = None if episode.frames_dir is None else str(episode.frames_dir)
     return data
-
-
-def _episode_from_dict(data: dict[str, Any]) -> Episode:
-    frames = data.pop("frames_dir", None)
-    episode = Episode(**data)
-    episode.frames_dir = None if frames is None else Path(frames)
-    return episode
 
 
 async def run_trial(
@@ -489,17 +471,16 @@ async def run_trial(
         # The models here are entirely scripted: no paid call or token usage occurred.
         episode.cost_usd = 0.0
         episode.usage_known = True
-        output = str(episode.extra.get("output") or "")
         final_oracle = read_oracle(outdir)
         events = read_events(outdir)
         event_counts: dict[str, int] = {}
         for event in events:
             event_counts[event.get("event", "?")] = event_counts.get(event.get("event", "?"), 0) + 1
-        status = extract_field(output, _STATUS)
+        terminal_summary = _terminal(episode)
         if episode.extra.get("result_type") == "timeout":
             terminal = "timeout"
         else:
-            terminal = status or "unknown"
+            terminal = str(terminal_summary.get("status") or "unknown")
         record = DesktopTrialRecord(
             task=plan.task,
             arm=plan.arm,
@@ -515,8 +496,8 @@ async def run_trial(
             noop_clicks=event_counts.get("noop", 0),
             steps=episode.steps,
             decision_calls=len(episode.decisions),
-            planner_calls=planner.calls,
-            chat_calls=max(0, episode.chat_calls - planner.calls),
+            planner_calls=planner.calls,  # the planner is a chat model, so its calls are a subset of chat_calls
+            chat_calls=episode.chat_calls,
             model_calls=len(episode.decisions) + episode.chat_calls,
             elapsed_s=elapsed_s,
             cost_usd=0.0,
@@ -526,7 +507,7 @@ async def run_trial(
                 "events": event_counts,
                 "distinct_pids": sorted({event.get("pid") for event in events if event.get("pid")}),
             },
-            **_recovery_fields(episode, output, bounded=(plan.arm == "on")),
+            **_recovery_fields(episode, bounded=(plan.arm == "on")),
         )
         (outdir / "trial.json").write_text(
             json.dumps(
@@ -618,33 +599,15 @@ def _validate(trials: list[TrialPlan]) -> None:
         seen.add(key)
 
 
-def _load_trial(outdir: Path) -> tuple[Episode, DesktopTrialRecord] | None:
-    path = outdir / "trial.json"
-    if not path.exists():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except ValueError:
-        return None
-    record = DesktopTrialRecord(**_without_unknown(DesktopTrialRecord, data["record"]))
-    return _episode_from_dict(data["episode"]), record
-
-
-def _without_unknown(dataclass_type: Any, payload: dict[str, Any]) -> dict[str, Any]:
-    names = set(dataclass_type.__dataclass_fields__)
-    return {key: value for key, value in payload.items() if key in names}
-
-
 async def run_eval(
     *,
     trials: list[TrialPlan] | None = None,
     config: DesktopEvalConfig | None = None,
     repeat: int = 1,
     run_id: str | None = None,
-    resume: bool = False,
     results_dir: Path = RESULTS_DIR,
 ) -> DesktopEvalRun:
-    """Run every planned trial, write the job folders and the paired summary. Fresh by default; ``resume`` reuses."""
+    """Run every planned trial, write the job folders and the paired summary. Every run starts fresh."""
     trials = default_trials(repeat) if trials is None else list(trials)
     _validate(trials)
     config = config or default_config()
@@ -652,7 +615,7 @@ async def run_eval(
         raise RuntimeError(f"fixture source not found: {config.fixture_source}")
     run_id = run_id or new_run_id()
     run_dir = results_dir / "desktop_recovery" / run_id
-    run_dir.mkdir(parents=True, exist_ok=resume)
+    run_dir.mkdir(parents=True)
     previous_workspace = loop.WORKSPACE
     loop.WORKSPACE = run_dir / "agent-workspaces"
     exe = run_dir / "build" / f"S1AFixture-{run_id}.exe"
@@ -665,12 +628,6 @@ async def run_eval(
                     build_fixture(config.fixture_source, exe, csc=config.csc, log=run_dir / "logs" / "csc.log")
                 for plan in trials:
                     name = f"{plan.task}-rethink_{plan.arm}-r{plan.repeat}"
-                    outdir = run_dir / "trials" / name
-                    cached = _load_trial(outdir) if resume else None
-                    if cached is not None:
-                        print(f"  [resume] {name}: reuse {outdir / 'trial.json'}")
-                        pairs.append(cached)
-                        continue
                     started = time.perf_counter()
                     try:
                         pair = await run_trial(driver, exe, plan, config=config, run_dir=run_dir, run_id=run_id)
@@ -704,24 +661,16 @@ def run_sync(**kwargs: Any) -> DesktopEvalRun:
     return asyncio.run(run_eval(**kwargs))
 
 
-def _rate(count: int, planned: int) -> float | None:
-    return round(count / planned, 3) if planned else None
-
-
 def _arm_block(records: list[DesktopTrialRecord]) -> dict[str, Any]:
-    planned = len(records)
     return {
-        "planned": planned,
-        "verified": sum(record.verified for record in records),
-        "errored": sum(record.errored for record in records),
-        "completion_rate": _rate(sum(record.verified for record in records), planned),
+        **coverage(records),
         "recovery_attempts": sum(record.recovery_attempts for record in records),
         "recovery_spent_s": round(sum(record.recovery_spent_s for record in records), 3),
         "recovery_failed": sum(record.recovery_failed for record in records),
         "wasted_actions": sum(record.wasted_actions for record in records),
         "noop_clicks": sum(record.noop_clicks for record in records),
-        "mean_model_calls": round(statistics.mean(r.model_calls for r in records), 2) if records else None,
-        "mean_elapsed_s": round(statistics.mean(r.elapsed_s for r in records), 3) if records else None,
+        "mean_model_calls": mean((r.model_calls for r in records), 2),
+        "mean_elapsed_s": mean((r.elapsed_s for r in records), 3),
         "cost_usd": 0.0,
     }
 
@@ -734,46 +683,18 @@ def paired_summary(records: list[DesktopTrialRecord]) -> dict[str, Any]:
         task: {arm: _arm_block([r for r in records if r.arm == arm and r.task == task]) for arm in ARMS}
         for task in tasks
     }
-    pairs: dict[tuple[str, int], dict[str, DesktopTrialRecord]] = {}
-    for record in records:
-        pairs.setdefault((record.task, record.repeat), {})[record.arm] = record
-    both = off_only = on_only = neither = incomplete = 0
-    delta_elapsed: list[float] = []
-    delta_wasted: list[int] = []
-    for arm_records in pairs.values():
-        off, on = arm_records.get("off"), arm_records.get("on")
-        if off is None or on is None:
-            incomplete += 1
-            continue
-        delta_elapsed.append(round(on.elapsed_s - off.elapsed_s, 3))
-        delta_wasted.append(on.wasted_actions - off.wasted_actions)
-        if off.verified and on.verified:
-            both += 1
-        elif on.verified:
-            on_only += 1
-        elif off.verified:
-            off_only += 1
-        else:
-            neither += 1
-    off_rate = arms["off"]["verified"] / arms["off"]["planned"] if arms["off"]["planned"] else None
-    on_rate = arms["on"]["verified"] / arms["on"]["planned"] if arms["on"]["planned"] else None
+    paired, complete = pair_outcomes(records)
+    paired = {
+        **paired,
+        "mean_delta_elapsed_s": mean((round(on.elapsed_s - off.elapsed_s, 3) for off, on in complete), 3),
+        "mean_delta_wasted_actions": mean((on.wasted_actions - off.wasted_actions for off, on in complete), 2),
+    }
     return {
         "planned_trials": len(records),
         "arms": arms,
         "by_task": by_task,
-        "paired": {
-            "pairs": len(pairs) - incomplete,
-            "incomplete_pairs": incomplete,
-            "both_verified": both,
-            "off_only_verified": off_only,
-            "on_only_verified": on_only,
-            "neither_verified": neither,
-            "mean_delta_elapsed_s": round(statistics.mean(delta_elapsed), 3) if delta_elapsed else None,
-            "mean_delta_wasted_actions": round(statistics.mean(delta_wasted), 2) if delta_wasted else None,
-        },
-        "on_minus_off_completion_rate": (
-            round(on_rate - off_rate, 3) if on_rate is not None and off_rate is not None else None
-        ),
+        "paired": paired,
+        "on_minus_off_completion_rate": on_minus_off_completion_rate(arms),
         "note": (
             "controlled fault injection with a scripted decision model and a scripted planner on a self-built "
             "fixture: it exercises the recovery mechanism and budget, not a trained model and not a real app success "
@@ -789,27 +710,21 @@ def render_markdown(summary: dict[str, Any]) -> str:
         "",
         f"Planned trials: {summary['planned_trials']} (errors included).",
         "",
-        "| arm | planned | verified | completion | errored | recovery attempts | recovery failed | wasted actions | mean elapsed s |",
-        "|---|---|---|---|---|---|---|---|---|",
     ]
-    for arm in ARMS:
-        block = summary["arms"][arm]
-        lines.append(
-            f"| {arm} | {block['planned']} | {block['verified']} | {block['completion_rate']} | {block['errored']} | "
-            f"{block['recovery_attempts']} | {block['recovery_failed']} | {block['wasted_actions']} | "
-            f"{block['mean_elapsed_s']} |"
-        )
-    lines += ["", "| task | arm | planned | verified | completion |", "|---|---|---|---|---|"]
-    for task, arms in summary["by_task"].items():
-        for arm in ARMS:
-            block = arms[arm]
-            lines.append(f"| {task} | {arm} | {block['planned']} | {block['verified']} | {block['completion_rate']} |")
+    lines += summary_tables(
+        summary,
+        [
+            ("errored", "errored"),
+            ("recovery attempts", "recovery_attempts"),
+            ("recovery failed", "recovery_failed"),
+            ("wasted actions", "wasted_actions"),
+            ("mean elapsed s", "mean_elapsed_s"),
+        ],
+    )
     paired = summary["paired"]
     lines += [
         "",
-        "Paired completion per (task, repeat): "
-        f"on-only {paired['on_only_verified']}, off-only {paired['off_only_verified']}, "
-        f"both {paired['both_verified']}, neither {paired['neither_verified']}.",
+        paired_completion_line(paired),
         f"On minus off completion rate: {summary['on_minus_off_completion_rate']}.",
         "",
         f"Note: {summary['note']}",
@@ -832,8 +747,8 @@ def _json_summary(
             "wasted_actions": "accepted acts whose window progress digest did not change (the desktop no-op count)",
             "noop_clicks": "the fixture's own logged clicks on its no-op control",
             "elapsed_s": "trial wall clock including fixture startup and the agent episode; excludes shared driver and compiler startup",
-            "model_calls": "decision_calls + chat_calls (all scripted doubles)",
-            "next_action": "the actionable escalation the terminal carried for a failed bounded recovery",
+            "model_calls": "decision_calls + chat_calls (all scripted doubles); planner_calls is a subset of chat_calls",
+            "next_action": "the actionable escalation the runtime terminal carried for a failed bounded recovery",
             "next_action_source": "where a recorded next_action came from: a recovery event or the terminal; never generated by the evaluator",
             "cost_usd": "0 by construction: scripted decisions and planner, no paid API call",
         },
@@ -855,8 +770,7 @@ def parser() -> argparse.ArgumentParser:
     argument_parser.add_argument("--repeat", type=int, default=1, help="repeats per (task, arm); >= 1")
     argument_parser.add_argument("--tasks", default=",".join(TASKS), help=f"comma-separated subset of {TASKS}")
     argument_parser.add_argument("--arms", default=",".join(ARMS), help=f"comma-separated subset of {ARMS}")
-    argument_parser.add_argument("--run-id", default=None, help="reuse a run id; with --resume, continue it")
-    argument_parser.add_argument("--resume", action="store_true", help="reuse existing trial.json files in the run")
+    argument_parser.add_argument("--run-id", default=None, help="name this run explicitly (default: a fresh unique id)")
     argument_parser.add_argument("--results-dir", default=str(RESULTS_DIR), help="where the run directory is created")
     return argument_parser
 
@@ -872,7 +786,6 @@ def main(argv: list[str] | None = None) -> int:
         trials=default_trials(args.repeat, tasks, arms),
         config=config,
         run_id=args.run_id,
-        resume=args.resume,
         results_dir=Path(args.results_dir),
     )
     print(render_markdown(run.summary))

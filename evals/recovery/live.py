@@ -64,6 +64,15 @@ from s1a.run import started_runner
 from s1a.spec import BrowserAgentSpec, Budget
 
 from evals.recovery.fixture import DEFAULT_TASKS, Fixture, FormTask, start_fixture, validated_tasks
+from evals.recovery.summary import (
+    coverage,
+    mean,
+    on_minus_off_completion_rate,
+    pair_outcomes,
+    paired_completion_line,
+    paired_delta_line,
+    summary_tables,
+)
 
 GOAL_TEMPLATE = (
     "Open {url} and complete the form: type '{value}' into the field labelled Value and click Submit. "
@@ -180,7 +189,9 @@ class CountingDecisionModel(DecisionModel):
         record["status"] = "ok"
         record["input_tokens"] = int(reply.usage.input_tokens)
         record["output_tokens"] = int(reply.usage.output_tokens)
-        record["usage_known"] = True
+        # A successful reply may still not report usage: the backend's own completeness flag is authoritative, so an
+        # explicit zero stays known while missing or malformed usage keeps the call's tokens unknown, never zero.
+        record["usage_known"] = bool(reply.usage.known)
         return reply
 
     async def decide_many(
@@ -386,6 +397,12 @@ async def play_trial(
         raise
     except Exception as exc:  # noqa: BLE001 - the trial keeps its real counters and oracle; the type is the summary
         error = type(exc).__name__  # the type only: a provider error can carry headers or keys in its message
+    status = answer.get("status")
+    if error is None and status is None and answer.get("error"):
+        # browse returns a run-level failure (a timeout, a non-answer result) in ``answer['error']`` instead of
+        # raising. Keep it even when the fixture already recorded the correct POST, so a verified trial that then
+        # timed out is not reported as error-free; a played BLOCKED keeps its descriptive message, not an error.
+        error = str(answer["error"])
     elapsed_s = round(time.perf_counter() - wall_started, 3)
     report = answer.get("report") or {}
     recovery = report.get("recovery") or {}
@@ -424,16 +441,15 @@ async def play_trial(
         prices=prices,
     )
     verified = fixture.verified(task)
-    status = answer.get("status")
     if verified:
-        terminal = "verified"
+        terminal = "verified"  # the oracle verified independently; any run error is still kept in ``error``
     elif status is not None:
         terminal = str(status)
+    elif error is not None:
+        terminal = "timeout" if "timeout" in error.lower() else f"error: {error}"
     else:
-        reason = str(answer.get("error") or error or "no terminal verdict")
-        terminal = "timeout" if "timeout" in reason.lower() else f"error: {reason}"
-        if error is None:
-            error = reason
+        error = "no terminal verdict"
+        terminal = f"error: {error}"
     return LiveTrial(
         task=task.name,
         arm=arm,
@@ -535,10 +551,6 @@ def _failed_trial(
     )
 
 
-def _rate(count: int, planned: int) -> float | None:
-    return round(count / planned, 3) if planned else None
-
-
 def _counts(values: Any) -> dict[str, int]:
     counts: dict[str, int] = {}
     for value in values:
@@ -548,13 +560,7 @@ def _counts(values: Any) -> dict[str, int]:
     return counts
 
 
-def _mean(values: list[float], digits: int) -> float | None:
-    return round(sum(values) / len(values), digits) if values else None
-
-
 def _arm_block(records: list[LiveTrial]) -> dict[str, Any]:
-    planned = len(records)
-    verified = sum(record.verified for record in records)
     costs = [record.cost_usd for record in records]
     decision_means = [record.decision_ms_mean for record in records if record.decision_ms_mean is not None]
     if not costs:
@@ -564,10 +570,7 @@ def _arm_block(records: list[LiveTrial]) -> dict[str, Any]:
     else:
         cost_total = round(sum(cost for cost in costs if cost is not None), 6)
     return {
-        "planned": planned,
-        "verified": verified,
-        "errored": sum(record.errored for record in records),
-        "completion_rate": _rate(verified, planned),
+        **coverage(records),
         "terminals": _counts(record.terminal for record in records),
         "recovery_attempts": sum(record.recovery_attempts for record in records),
         "recovery_failed": sum(record.recovery_failed for record in records),
@@ -582,9 +585,9 @@ def _arm_block(records: list[LiveTrial]) -> dict[str, Any]:
         "chat_calls": sum(record.chat_calls for record in records),
         "chat_failures": sum(record.chat_failures for record in records),
         "wasted_actions": sum(record.wasted_actions for record in records),
-        "mean_elapsed_s": _mean([record.elapsed_s for record in records], 3),
-        "mean_decision_ms": _mean(decision_means, 1),
-        "mean_recovery_attempts": _mean([float(record.recovery_attempts) for record in records], 2),
+        "mean_elapsed_s": mean((record.elapsed_s for record in records), 3),
+        "mean_decision_ms": mean(decision_means, 1),
+        "mean_recovery_attempts": mean((float(record.recovery_attempts) for record in records), 2),
         "chat_input_tokens": sum(record.chat_input_tokens for record in records),
         "chat_output_tokens": sum(record.chat_output_tokens for record in records),
         "chat_cache_tokens": sum(record.chat_cache_tokens for record in records),
@@ -603,55 +606,21 @@ def summarize(trials: list[LiveTrial], arms: tuple[str, ...], *, model_id: str, 
         task: {arm: _arm_block([r for r in trials if r.arm == arm and r.task == task]) for arm in arms}
         for task in tasks
     }
-    pairs: dict[tuple[str, int], dict[str, LiveTrial]] = {}
-    for record in trials:
-        pairs.setdefault((record.task, record.repeat), {})[record.arm] = record
-    both = off_only = on_only = neither = incomplete = 0
-    delta_decision_calls: list[int] = []
-    delta_chat_calls: list[int] = []
-    delta_elapsed_s: list[float] = []
-    delta_wasted_actions: list[int] = []
-    for arm_records in pairs.values():
-        off, on = arm_records.get("off"), arm_records.get("on")
-        if off is None or on is None:
-            incomplete += 1
-            continue
-        delta_decision_calls.append(on.decision_calls - off.decision_calls)
-        delta_chat_calls.append(on.chat_calls - off.chat_calls)
-        delta_elapsed_s.append(round(on.elapsed_s - off.elapsed_s, 3))
-        delta_wasted_actions.append(on.wasted_actions - off.wasted_actions)
-        if off.verified and on.verified:
-            both += 1
-        elif on.verified:
-            on_only += 1
-        elif off.verified:
-            off_only += 1
-        else:
-            neither += 1
-    off = arms_block.get("off") or {}
-    on = arms_block.get("on") or {}
-    off_rate = (off.get("verified") or 0) / off["planned"] if off.get("planned") else None
-    on_rate = (on.get("verified") or 0) / on["planned"] if on.get("planned") else None
+    paired, complete = pair_outcomes(trials)
+    paired = {
+        **paired,
+        "mean_delta_decision_calls": mean((on.decision_calls - off.decision_calls for off, on in complete), 2),
+        "mean_delta_chat_calls": mean((on.chat_calls - off.chat_calls for off, on in complete), 2),
+        "mean_delta_elapsed_s": mean((round(on.elapsed_s - off.elapsed_s, 3) for off, on in complete), 3),
+        "mean_delta_wasted_actions": mean((on.wasted_actions - off.wasted_actions for off, on in complete), 2),
+    }
     return {
         "planned_trials": len(trials),
         "model": {"requested": model_name, "resident": model_id},
         "arms": arms_block,
         "by_task": by_task,
-        "paired": {
-            "pairs": len(pairs) - incomplete,
-            "incomplete_pairs": incomplete,
-            "both_verified": both,
-            "off_only_verified": off_only,
-            "on_only_verified": on_only,
-            "neither_verified": neither,
-            "mean_delta_decision_calls": _mean([float(v) for v in delta_decision_calls], 2),
-            "mean_delta_chat_calls": _mean([float(v) for v in delta_chat_calls], 2),
-            "mean_delta_elapsed_s": _mean(delta_elapsed_s, 3),
-            "mean_delta_wasted_actions": _mean([float(v) for v in delta_wasted_actions], 2),
-        },
-        "on_minus_off_completion_rate": (
-            round(on_rate - off_rate, 3) if on_rate is not None and off_rate is not None else None
-        ),
+        "paired": paired,
+        "on_minus_off_completion_rate": on_minus_off_completion_rate(arms_block),
         "note": (
             "real decision and chat models on three small synthetic form pages; success is the fixture's recorded "
             "POST, not the model's DONE. This is not an open-task success rate and recovery may not trigger. "
@@ -665,39 +634,40 @@ def summarize(trials: list[LiveTrial], arms: tuple[str, ...], *, model_id: str, 
 
 def render_markdown(summary: dict[str, Any]) -> str:
     """A short human-readable companion to the JSON."""
-    arms = list(summary["arms"])
     lines: list[str] = [
         "# Bounded recovery on/off - live real-model fixture subset",
         "",
         f"Model: {summary['model']['requested']} (resident id: {summary['model']['resident']}).",
         f"Planned trials: {summary['planned_trials']} (errors and timeouts included, never dropped).",
         "",
-        "| arm | planned | verified | completion | errored | recovery attempts | planner attempts | "
-        "decision calls | chat calls | mean elapsed s | wasted actions | cost usd |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
-    for arm in arms:
-        block = summary["arms"][arm]
-        lines.append(
-            f"| {arm} | {block['planned']} | {block['verified']} | {block['completion_rate']} | {block['errored']} | "
-            f"{block['recovery_attempts']} | {block['planner_attempts']} | {block['decision_calls']} | "
-            f"{block['chat_calls']} | {block['mean_elapsed_s']} | {block['wasted_actions']} | {block['cost_usd']} |"
-        )
-    lines += ["", "| task | arm | planned | verified | completion |", "|---|---|---|---|---|"]
-    for task, task_arms in summary["by_task"].items():
-        for arm in arms:
-            block = task_arms[arm]
-            lines.append(f"| {task} | {arm} | {block['planned']} | {block['verified']} | {block['completion_rate']} |")
+    lines += summary_tables(
+        summary,
+        [
+            ("errored", "errored"),
+            ("recovery attempts", "recovery_attempts"),
+            ("planner attempts", "planner_attempts"),
+            ("decision calls", "decision_calls"),
+            ("chat calls", "chat_calls"),
+            ("mean elapsed s", "mean_elapsed_s"),
+            ("wasted actions", "wasted_actions"),
+            ("cost usd", "cost_usd"),
+        ],
+    )
     paired = summary["paired"]
     lines += [
         "",
-        "Paired completion per (task, repeat): "
-        f"on-only {paired['on_only_verified']}, off-only {paired['off_only_verified']}, "
-        f"both {paired['both_verified']}, neither {paired['neither_verified']}.",
+        paired_completion_line(paired),
         f"On minus off completion rate: {summary['on_minus_off_completion_rate']}.",
-        "Paired mean on-minus-off deltas: "
-        f"decision calls {paired['mean_delta_decision_calls']}, chat calls {paired['mean_delta_chat_calls']}, "
-        f"elapsed s {paired['mean_delta_elapsed_s']}, wasted actions {paired['mean_delta_wasted_actions']}.",
+        paired_delta_line(
+            paired,
+            **{
+                "mean_delta_decision_calls": "decision calls",
+                "mean_delta_chat_calls": "chat calls",
+                "mean_delta_elapsed_s": "elapsed s",
+                "mean_delta_wasted_actions": "wasted actions",
+            },
+        ),
         "",
         f"Note: {summary['note']}",
         "",

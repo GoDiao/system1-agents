@@ -125,10 +125,17 @@ def page_html(task: FormTask, *, error: str | None = None) -> str:
 
 
 def result_html(task_name: str, value: str) -> str:
+    """The success page: both the task name and the submitted value are escaped, so model text is data, not markup.
+
+    The value comes from the model's own POST, so an unescaped ``<script>`` would run in the fixture origin and could
+    alter the page or issue further POSTs; the independent oracle reads only the recorded submits, never this HTML.
+    """
+    task = html.escape(task_name)
+    shown = html.escape(value)
     return (
         "<!doctype html><html><head><meta charset='utf-8'>"
-        f"<title>Submitted {task_name}</title></head><body>\n"
-        f"<h1>Submitted</h1><p id='value'>value={value}</p>\n"
+        f"<title>Submitted {task}</title></head><body>\n"
+        f"<h1>Submitted</h1><p id='value'>value={shown}</p>\n"
         "</body></html>"
     )
 

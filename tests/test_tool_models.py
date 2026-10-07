@@ -207,6 +207,33 @@ class TestToolDecisionModelOverJev(IsolatedAsyncioTestCase):
         self.assertNotIn("recovery", summary)
         self.assertNotIn("next_action", summary)
 
+    async def test_a_permission_denied_act_fallback_routes_through_the_permission_flow(self) -> None:
+        state = EvalState(bounded_recovery=True, error="act failed: permission denied: Accessibility")
+        summary = json.loads((await _jev(CountingEnv(), state, _transport()).invoke([], tools=TOOLS)).content)
+        self.assertEqual(summary["status"], "BLOCKED")
+        self.assertIn("permission flow", summary["next_action"])
+        self.assertIn("permission flow", summary["recovery"]["next_action"])
+        self.assertEqual(state.terminal, summary)
+
+    async def test_the_structured_terminal_is_stored_whole_when_the_output_is_truncated(self) -> None:
+        long_reason = "plan failed: " + "x" * 400
+        state = EvalState(bounded_recovery=True, error=long_reason)
+        state.rethinks.append(
+            {
+                "kind": "stall",
+                "attempt": 1,
+                "termination": "error",
+                "phase": "planner",
+                "error": long_reason,
+                "next_action": "review the latest observation, then start a new task",
+            }
+        )
+        message = await _jev(CountingEnv(), state, _transport()).invoke([], tools=TOOLS)
+        summary = json.loads(message.content)
+        self.assertEqual(state.terminal, summary)
+        self.assertIn("next_action", state.terminal)
+        self.assertNotIn('"next_action"', message.content[:300], "the legacy output truncates before the next step")
+
     async def test_a_bounded_recovery_failure_puts_reason_and_next_action_in_the_terminal(self) -> None:
         state = EvalState(bounded_recovery=True, error="rethink planner timed out")
         state.rethinks.append(

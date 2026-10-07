@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from s1a.browser import browse, prompts
 from s1a.browser.decision_model import BrowserPolicy
@@ -78,8 +79,8 @@ def _trial_metrics(answer: dict[str, Any], decision_model: DecisionModel, chat: 
     history = report.get("history") or []
     ticks = answer.get("ticks") or []
     decision_calls = int(getattr(decision_model, "decide_calls", 0) or 0)
-    planner_calls = int(getattr(chat, "planner_calls", 0) or 0)
-    chat_calls = int(getattr(chat, "invoke_calls", 0) or 0) - planner_calls
+    planner_calls = int(getattr(chat, "planner_calls", 0) or 0)  # a planner call is a chat call too, never added again
+    chat_calls = int(getattr(chat, "invoke_calls", 0) or 0)
     return {
         "wasted_actions": sum(
             1 for entry in history if entry.get("kind") != "wait" and entry.get("page_changed") is False
@@ -91,7 +92,7 @@ def _trial_metrics(answer: dict[str, Any], decision_model: DecisionModel, chat: 
         "decision_calls": decision_calls,
         "planner_calls": planner_calls,
         "chat_calls": chat_calls,
-        "model_calls": decision_calls + chat_calls + planner_calls,
+        "model_calls": decision_calls + chat_calls,  # planner_calls is already inside chat_calls
     }
 
 
@@ -156,36 +157,46 @@ async def play_trial(
     )
     goal = GOAL_TEMPLATE.format(url=fixture.task_url(task), value=task.expected_value)
     # The scripted model is handed to browse's decision-model slot; that branch is keyed "jev" but no Jev client
-    # exists here, so no API is called.
-    answer = await browse.browse(
-        spec,
-        policy,
-        model_name="jev",
-        goal=goal,
-        timeout_s=config.timeout_s,
-        max_steps=config.max_steps,
-        logs_dir=logs_dir,
-        headless=config.headless,
-        chat=chat,
-        decision_model=decision_model,
-    )
+    # exists here, so no API is called. A raise still lets this trial keep its own fixture oracle.
+    answer: dict[str, Any] = {}
+    run_error: str | None = None
+    try:
+        answer = await browse.browse(
+            spec,
+            policy,
+            model_name="jev",
+            goal=goal,
+            timeout_s=config.timeout_s,
+            max_steps=config.max_steps,
+            logs_dir=logs_dir,
+            headless=config.headless,
+            chat=chat,
+            decision_model=decision_model,
+        )
+    except Exception as exc:  # noqa: BLE001 - the type is the summary; a provider error can carry headers or keys
+        run_error = type(exc).__name__
+    status = answer.get("status")
+    if run_error is None and status is None and answer.get("error"):
+        # browse returns a run-level failure (a timeout, a non-answer result) in ``answer['error']`` rather than
+        # raising. Only a missing terminal verdict is a harness failure; a played BLOCKED keeps its descriptive
+        # message without becoming an errored trial, while a timeout after a real POST is still kept.
+        run_error = str(answer["error"])
     elapsed_s = round(time.perf_counter() - wall_started, 3)
     report = answer.get("report") or {}
     terminal = answer.get("terminal") or {}
     recovery = report.get("recovery") or {}
     ticks = answer.get("ticks") or []
     verified = fixture.verified(task)
-    status = answer.get("status")
     if verified:
-        terminal_name = "verified"
-        error = None
+        terminal_name = "verified"  # the oracle verified independently; a run error is still kept below
     elif status is not None:
-        terminal_name = str(status)  # a played episode that did not submit (e.g. BLOCKED): score 0, not an exception
-        error = None
+        terminal_name = str(status)  # a played episode that did not submit (e.g. BLOCKED): score 0
+    elif run_error is not None:
+        terminal_name = "timeout" if "timeout" in run_error.lower() else f"error: {run_error}"
     else:
-        reason = str(answer.get("error") or "no terminal verdict")  # the harness could not play the episode at all
-        terminal_name = "timeout" if "timeout" in reason.lower() else f"error: {reason}"
-        error = reason
+        run_error = "no terminal verdict"  # the harness could not play the episode at all
+        terminal_name = f"error: {run_error}"
+    error = run_error
     metrics = _trial_metrics(answer, decision_model, chat)
     record = TrialRecord(
         task=task.name,
@@ -319,7 +330,9 @@ async def run_eval(
     """
     _validate_run(repeat, tasks, arms)
     config = config or EvalConfig()
-    run_id = f"{datetime.now():%Y-%m-%d__%H-%M-%S}"
+    # The clock alone has one-second precision, so two runs started in the same second would share every path; the
+    # random suffix keeps their logs and paired summaries apart.
+    run_id = f"{datetime.now():%Y-%m-%d__%H-%M-%S}-{uuid4().hex[:6]}"
     logs_root = HOME / "runs" / "recovery" / run_id
     episodes_by_arm: dict[str, list[Episode]] = {arm: [] for arm in arms}
     records: list[TrialRecord] = []
@@ -363,7 +376,7 @@ def _json_summary(summary: dict[str, Any], records: list[TrialRecord]) -> str:
                 "elapsed_s": "whole trial wall clock, includes harness and browser startup (not inference)",
                 "decisions_ms": "scripted decision time measured with perf_counter, summed over ticks (near-zero, not a benchmark)",
                 "recorded_probe_ms": "sum of recorded probe wall times, including action settling; excludes recovery, final and unticked probes; not total environment time",
-                "model_calls": "decision_calls + chat_calls + planner_calls (all scripted doubles)",
+                "model_calls": "decision_calls + chat_calls (all scripted doubles); planner_calls is a subset of chat_calls",
                 "cost_usd": "0 by construction: scripted decisions and planner, no paid API call",
             },
         },

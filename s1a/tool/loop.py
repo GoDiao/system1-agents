@@ -301,7 +301,8 @@ async def run_episode(
     chat_input_tokens = sum(call["input_tokens"] for call in state.chat)
     chat_output_tokens = sum(call["output_tokens"] for call in state.chat)
     chat_cache_tokens = sum(call["cache_tokens"] for call in state.chat)
-    complete_usage = usage_known(state.chat)
+    # A decision reply without usable usage leaves its tokens unknown too, not a confirmed zero.
+    complete_usage = usage_known(state.chat) and all(tick.get("usage_known", True) for tick in state.ticks)
     # A failed or cancelled planner call leaves its tokens unknown: the episode's cost is unknown, not zero, and
     # price_episodes must not overwrite that None with a partial number.
     episode_cost = (
@@ -334,6 +335,8 @@ async def run_episode(
             "rethink": rail is not None,
             "rethinks": state.rethinks,
             "result_type": result.get("result_type"),
+            # The structured terminal is kept whole; the legacy short output stays for older consumers.
+            "terminal": state.terminal,
             "output": str(result.get("output") or "")[:300],
             # Keep only the failed or unpriced call records: enough to trace a lost planner call, no prompt bloat.
             "failed_chat_calls": call_digests(state.chat),

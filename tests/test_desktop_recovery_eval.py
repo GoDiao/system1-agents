@@ -23,10 +23,6 @@ from evals.desktop_recovery import (
     DesktopTrialRecord,
     _recovery_fields,
     count_wasted_actions,
-    extract_field,
-    _NEXT_ACTION,
-    _REASON,
-    _STATUS,
     paired_summary,
     read_events,
     read_oracle,
@@ -121,15 +117,19 @@ class TestWastedActions(TestCase):
 
 
 class TestTerminalFields(TestCase):
-    def test_extract_field_reads_the_truncated_terminal_json(self) -> None:
-        output = '{"status": "BLOCKED", "reason": "act budget spent", "next_action": "Review: start a new task."'
-        self.assertEqual(extract_field(output, _STATUS), "BLOCKED")
-        self.assertEqual(extract_field(output, _REASON), "act budget spent")
-        self.assertEqual(extract_field(output, _NEXT_ACTION), "Review: start a new task.")
-        self.assertIsNone(extract_field("", _NEXT_ACTION))
-
-    def _episode(self, *, policy: str, error: str | None, rethinks: list[dict[str, Any]], output: str) -> Episode:
+    def _episode(
+        self,
+        *,
+        policy: str,
+        error: str | None,
+        rethinks: list[dict[str, Any]],
+        terminal: dict[str, Any] | None = None,
+        output: str = "",
+    ) -> Episode:
         stamp = now_iso()
+        extra: dict[str, Any] = {"rethinks": rethinks, "output": output}
+        if terminal is not None:
+            extra["terminal"] = terminal
         return Episode(
             env="desktop_recovery",
             policy=policy,
@@ -148,15 +148,34 @@ class TestTerminalFields(TestCase):
             invalid_keys=0,
             cost_usd=0.0,
             error=error,
-            extra={"rethinks": rethinks, "output": output},
+            extra=extra,
         )
+
+    def test_the_structured_terminal_is_consumed_not_regex_parsed(self) -> None:
+        # The full next action survives even when the legacy output is truncated mid-JSON: the structured terminal is
+        # the source, so no regex over the truncated text is needed.
+        terminal = {"status": "BLOCKED", "reason": "act budget spent", "next_action": "Review: start a new task."}
+        episode = self._episode(
+            policy="scripted-on",
+            error=None,
+            rethinks=[{"kind": "stall", "attempt": 1, "termination": "planned", "spent_s": 0.1}],
+            terminal=terminal,
+            output='{"status": "BLOCKED", "next_action": "Review: start a new ta',
+        )
+        fields = _recovery_fields(episode, bounded=True)
+        self.assertEqual(fields["next_action_source"], "terminal")
+        self.assertEqual(fields["recovery_next_action"], "Review: start a new task.")
+        self.assertTrue(fields["recovery_failed"])
 
     def test_a_failed_event_supplies_the_next_action_before_the_terminal(self) -> None:
         rethinks = [
             {"kind": "stall", "attempt": 2, "termination": "give_up", "next_action": "event action", "spent_s": 0.5}
         ]
-        episode = self._episode(policy="scripted-on", error="recovery attempts spent", rethinks=rethinks, output="")
-        fields = _recovery_fields(episode, "", bounded=True)
+        terminal = {"status": "BLOCKED", "reason": "give_up", "next_action": "terminal action"}
+        episode = self._episode(
+            policy="scripted-on", error="recovery attempts spent", rethinks=rethinks, terminal=terminal
+        )
+        fields = _recovery_fields(episode, bounded=True)
         self.assertEqual(fields["next_action_source"], "event")
         self.assertEqual(fields["recovery_next_action"], "event action")
         self.assertTrue(fields["recovery_failed"])
@@ -164,32 +183,32 @@ class TestTerminalFields(TestCase):
 
     def test_a_plan_only_stall_falls_back_to_the_terminal_next_action(self) -> None:
         rethinks = [{"kind": "stall", "attempt": 3, "termination": "planned", "spent_s": 0.2}]
-        output = '{"status": "BLOCKED", "reason": "act budget spent", "next_action": "Review it; start a new task."'
-        episode = self._episode(policy="scripted-on", error=None, rethinks=rethinks, output=output)
-        fields = _recovery_fields(episode, output, bounded=True)
+        terminal = {"status": "BLOCKED", "reason": "act budget spent", "next_action": "Review it; start a new task."}
+        episode = self._episode(policy="scripted-on", error=None, rethinks=rethinks, terminal=terminal)
+        fields = _recovery_fields(episode, bounded=True)
         self.assertEqual(fields["next_action_source"], "terminal")
         self.assertEqual(fields["recovery_next_action"], "Review it; start a new task.")
         self.assertTrue(fields["recovery_failed"])
 
     def test_an_error_does_not_fabricate_an_unrecorded_operator_action(self) -> None:
         episode = self._episode(policy="scripted-on", error="rethink planner timed out", rethinks=[], output="")
-        fields = _recovery_fields(episode, "", bounded=True)
+        fields = _recovery_fields(episode, bounded=True)
         self.assertIsNone(fields["next_action_source"])
         self.assertIsNone(fields["recovery_next_action"])
         self.assertTrue(fields["recovery_failed"])
 
     def test_a_bounded_success_is_not_a_recovery_failure(self) -> None:
         rethinks = [{"kind": "stall", "attempt": 1, "termination": "planned", "spent_s": 0.1}]
-        output = '{"status": "DONE", "reason": "environment done"}'
-        episode = self._episode(policy="scripted-on", error=None, rethinks=rethinks, output=output)
-        fields = _recovery_fields(episode, output, bounded=True)
+        terminal = {"status": "DONE", "reason": "environment done"}
+        episode = self._episode(policy="scripted-on", error=None, rethinks=rethinks, terminal=terminal)
+        fields = _recovery_fields(episode, bounded=True)
         self.assertFalse(fields["recovery_failed"], "a completed task is not a failed recovery")
         self.assertIsNone(fields["recovery_next_action"])
         self.assertIsNone(fields["next_action_source"])
 
     def test_an_off_arm_without_recovery_is_not_a_recovery_failure(self) -> None:
-        episode = self._episode(policy="scripted-off", error=None, rethinks=[], output='{"status": "DONE"}')
-        fields = _recovery_fields(episode, episode.extra["output"], bounded=False)
+        episode = self._episode(policy="scripted-off", error=None, rethinks=[], terminal={"status": "DONE"})
+        fields = _recovery_fields(episode, bounded=False)
         self.assertFalse(fields["recovery_failed"])
         self.assertIsNone(fields["recovery_next_action"])
 
@@ -340,3 +359,11 @@ class TestBoundedActBudgetTerminal(IsolatedAsyncioTestCase):
         self.assertIn('"next_action"', output)
         self.assertIn("start a new task", output, "the full next action must survive the terminal output budget")
         self.assertNotIn("recovery timeout", output, "an act cap is not dressed up as a recovery timeout")
+        # The evaluator consumes the runtime's structured terminal; the full escalation is read from it, not the
+        # truncated output, so a long next action survives the terminal output's short budget.
+        terminal = episode.extra["terminal"]
+        self.assertEqual(terminal["status"], "BLOCKED")
+        self.assertIn("start a new task", terminal["next_action"])
+        fields = _recovery_fields(episode, bounded=True)
+        self.assertEqual(fields["next_action_source"], "terminal")
+        self.assertIn("start a new task", fields["recovery_next_action"])

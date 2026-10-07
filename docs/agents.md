@@ -19,9 +19,9 @@ hook of a running agent. The injection guard rail fails closed: a decision error
 Every tool agent takes `--model jev|laya|laya-served|cua|llm|random|rule`, `--rethink on|off`, `--episodes N`, `--seed S`,
 `--max-steps` and `--timeout`, and writes a Harbor-shaped job folder under `evals/results/<agent>/`. A browser agent
 takes `--model jev|laya|laya-served|cua|llm`, `--goal` and the same `--rethink` flag. The desktop agent adds the bounded-recovery
-`--rethink-attempts` and `--rethink-timeout` and stalls after 3 actions; the browser front takes the same three names,
-and `docs/browser-front.md` decision 19 describes its branch. A rail takes `--model jev|laya|laya-served`, the three models that
-answer `noul`.
+`--rethink-attempts` and `--rethink-timeout` and stalls after 3 actions without observed progress. The browser front
+takes the same three names; `docs/browser-front.md` decision 19 describes its branch. A rail takes
+`--model jev|laya|laya-served`, the three models that answer `noul`.
 `uv run python -m evals.table evals/results` aggregates every job folder per eval and model into one table.
 
 Every `run` prints one JSON object on stdout and nothing else there; `s1a-mcp` serves the same agents over stdio
@@ -29,8 +29,12 @@ with `list_agents`, `run_agent` and `decide`. Flags, exit codes and the job-fold
 [architecture.md](architecture.md). The extras each agent needs and the keys: `CONTRIBUTING.md`. The `--model` values and the
 models behind them: [architecture.md](architecture.md#models).
 
-With bounded recovery enabled, a failed refresh or plan records its reason and a suggested next action for the
-operator; a plan answer that normalizes to empty or whitespace counts as a failed plan, not a plan. The empty reply
+Desktop recovery treats a changed progress observation as progress even when the completion score stays zero.
+Persistent no-ops and repeated states can trigger recovery; progress clears the detection window without refunding
+attempts or time. The full terminal fields, including `next_action`, are saved separately in `episode.extra.terminal`.
+
+With bounded recovery enabled, a failed refresh or plan records a short failure category and a suggested next
+action. Provider exception bodies are not stored. An empty or whitespace-only plan counts as a failed plan. The empty reply
 still consumes the one attempt and its active time, and the fresh observation is kept. A task the policy still
 answers `BLOCKED` after one or more replans is a failure too, even when a partial answer was fetched: the answer is
 context only and the run carries the block reason and a next action, without being reported as a failed or exhausted

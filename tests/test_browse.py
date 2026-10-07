@@ -105,6 +105,12 @@ class TestSolverContract(TestCase):
         self.assertEqual(summary["unknown_calls"], 1)
         self.assertIsNone(summary["cost_usd"], "an unknown call makes the task's cost unknown, never zero")
 
+    def test_a_decision_without_reported_usage_makes_the_task_usage_unknown(self) -> None:
+        calls = [{"status": "ok", "usage_known": True, "input_tokens": 100, "output_tokens": 5, "tool_calls": []}]
+        summary = browse.usage_summary(calls, jev_input_tokens=40, decisions=1, decision_usage_known=False)
+        self.assertFalse(summary["usage_known"])
+        self.assertIsNone(summary["cost_usd"], "a decision with missing usage is unknown, never a confirmed zero")
+
     def test_every_call_reported_usage_keeps_the_cost_known(self) -> None:
         calls = [
             {"status": "ok", "usage_known": True, "input_tokens": 100, "output_tokens": 5, "tool_calls": []},

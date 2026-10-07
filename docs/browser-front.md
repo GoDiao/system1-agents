@@ -137,7 +137,8 @@ browser-use/jev-ultrafast (MIT), whose observe-decide-act tick this policy follo
     next action, and the record is not mislabelled as a failed or exhausted recovery or a failed planner call.
     `--model llm` with `--rethink on` is rejected before
     the agent or browser is built. `report()` and `decision_ticks.json` keep the recovery events, attempts, seconds
-    and termination. Failed recovery also includes a next action for the operator; failed and cancelled planner calls
+    and termination. Failed recovery also includes a next action for the operator; refresh/planner errors record a
+    short failure category without the provider response body. Failed and cancelled planner calls
     remain in the call count, with unknown token usage kept separate from zero cost. To compare, run the same goal twice, `--rethink off` against `on`, on the same backend; the
     on/off difference is only worth quoting once the browser bench is rerun, because the scripted tests pin the loop,
     not a task success rate.

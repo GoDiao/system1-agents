@@ -48,6 +48,7 @@ class EvalState:
     give_up: bool = False
     error: str | None = None  # a decision or an act that failed; the episode is an errored trial
     bounded_recovery: bool = False  # a bounded RethinkRail is active, so give-up/error outrank a spent act budget
+    terminal: dict[str, Any] | None = None  # the structured stop summary, kept whole when the text output is truncated
 
     @property
     def budget_spent(self) -> bool:
@@ -159,6 +160,7 @@ class ToolDecisionModel(Model):
                 "ms": round((time.perf_counter() - started) * 1000),
                 "input_tokens": decision.usage.input_tokens,
                 "output_tokens": decision.usage.output_tokens,
+                "usage_known": decision.usage.known,
                 "plan": bool(state.plan),
                 "blocked": sorted(state.blocked),
                 "source": self.name,
@@ -203,9 +205,10 @@ class ToolDecisionModel(Model):
             else:
                 # Every bounded BLOCKED gets an operator-facing reason and next step. When the act budget ends the
                 # episode right after a plan (no failed recovery event carries one), synthesise it from the shared
-                # helper and name the cap as the reason: never dress an act cap up as a recovery timeout.
+                # helper and name the cap as the reason: never dress an act cap up as a recovery timeout. The reason
+                # is passed as ``error`` too, so a permission-denied action routes through the permission flow.
                 last = next((e for e in reversed(state.rethinks) if e.get("attempt") is not None), None)
-                next_action = recovery_next_action(termination=reason)
+                next_action = recovery_next_action(termination=reason, error=reason)
                 recovery = {
                     "failed": True,
                     "attempt": None if last is None else last.get("attempt"),
@@ -214,7 +217,9 @@ class ToolDecisionModel(Model):
                     "reason": reason,
                     "next_action": next_action,
                 }
-            # next_action first keeps the one actionable step inside the terminal's short output budget.
             summary["next_action"] = next_action
             summary["recovery"] = recovery
+        # The structured stop summary is kept whole on the state, so a consumer need not parse the (possibly
+        # truncated) text output to recover the reason and the actionable next step.
+        state.terminal = summary
         return AssistantMessage(content=json.dumps(summary, ensure_ascii=False), finish_reason="stop")

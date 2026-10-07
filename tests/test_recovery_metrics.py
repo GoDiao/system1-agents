@@ -54,7 +54,8 @@ def test_successful_desktop_arm_is_not_a_recovery_failure() -> None:
         invalid_keys=0,
         cost_usd=0.0,
     )
-    fields = _recovery_fields(episode, '{"status": "DONE", "reason": "environment done"}', bounded=True)
+    episode.extra["terminal"] = {"status": "DONE", "reason": "environment done"}
+    fields = _recovery_fields(episode, bounded=True)
     assert not fields["recovery_failed"]
     assert fields["recovery_next_action"] is None
     assert fields["next_action_source"] is None

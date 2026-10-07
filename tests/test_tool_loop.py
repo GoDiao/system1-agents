@@ -531,6 +531,81 @@ class TestBoundedRecoveryWiring(IsolatedAsyncioTestCase):
         # The plan is one call for the one attempt; the escalation adds no further model call.
         self.assertEqual(episode.chat_calls, 1)
 
+    async def test_the_structured_terminal_is_kept_alongside_the_short_output(self) -> None:
+        env, chat = RefreshingEnv(), ScriptedChatModel([])
+        picks = {"n": 0}
+
+        def ping_pong(observation: dict[str, Any], offered: dict[str, str]) -> str:
+            picks["n"] += 1
+            return "left" if picks["n"] % 2 else "right"
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(agent, "WORKSPACE", Path(tmp)):
+            await Runner.start()
+            try:
+                episode = await run_episode(
+                    SPEC_STALL,
+                    env,
+                    model_name="rule",
+                    seed=0,
+                    chat=chat,
+                    decision_model=RuleModel("ping-pong", ping_pong),
+                    rethink_on=True,
+                    max_acts=10,
+                    timeout_s=60.0,
+                    prices=None,
+                    log=False,
+                    limits=RecoveryLimits(max_attempts=1, timeout_s=5.0),
+                )
+            finally:
+                await Runner.stop()
+        terminal = episode.extra["terminal"]
+        self.assertIsInstance(terminal, dict)
+        self.assertEqual(terminal["status"], "BLOCKED")
+        self.assertIn("start a new task", terminal["next_action"])
+        self.assertEqual(terminal["recovery"]["next_action"], terminal["next_action"])
+        self.assertLessEqual(len(episode.extra["output"]), 300)
+
+    async def test_the_structured_terminal_carries_the_planner_failure_next_action(self) -> None:
+        env, chat = RefreshingEnv(), FailingChatModel()
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(agent, "WORKSPACE", Path(tmp)):
+            await Runner.start()
+            try:
+                episode = await run_episode(
+                    SPEC_STALL,
+                    env,
+                    model_name="rule",
+                    seed=0,
+                    chat=chat,
+                    decision_model=RuleModel("always-left", lambda observation, offered: "left"),
+                    rethink_on=True,
+                    max_acts=10,
+                    timeout_s=60.0,
+                    prices=None,
+                    log=False,
+                    limits=RecoveryLimits(max_attempts=1, timeout_s=5.0),
+                )
+            finally:
+                await Runner.stop()
+        terminal = episode.extra["terminal"]
+        self.assertIsInstance(terminal, dict)
+        self.assertEqual(terminal["status"], "BLOCKED")
+        self.assertEqual(terminal["recovery"]["termination"], "error")
+        self.assertIn("next_action", terminal)
+        self.assertNotIn("planner down", json.dumps(episode.extra), "the provider text is never persisted")
+
+    async def test_missing_decision_usage_leaves_the_cost_unknown_not_zero(self) -> None:
+        episode = await _play(
+            CountingEnv(),
+            max_acts=1,
+            timeout_s=60.0,
+            model_name="random",
+            decision_model=ScriptedModel(choose="inc", usage=Usage(known=False)),
+        )
+        self.assertFalse(episode.decisions[0]["usage_known"])
+        self.assertFalse(episode.usage_known)
+        self.assertIsNone(episode.cost_usd, "missing decision usage is unknown, never a confirmed zero")
+
     async def test_a_failed_chat_call_leaves_the_cost_unknown_not_zero(self) -> None:
         env, chat = RefreshingEnv(), FailingChatModel()
 

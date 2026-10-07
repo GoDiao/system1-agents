@@ -102,6 +102,102 @@ def test_proxy_usage_known_and_tokens_include_the_validation_retry() -> None:
     assert sum(call["input_tokens"] for call in proxy.calls) == 22, "the retry's own tokens are kept too"
 
 
+class _JevTransport:
+    """A Jev transport double: returns one canned payload and records the request bodies; no network call."""
+
+    model = "jev-fake"
+
+    def __init__(self, payload: dict) -> None:
+        self._payload = payload
+        self.bodies: list[dict] = []
+
+    async def decide(self, body: dict) -> tuple[dict, int]:
+        self.bodies.append(body)
+        return self._payload, 4
+
+    async def warm(self) -> None:
+        return None
+
+    async def close(self) -> None:
+        return None
+
+
+def _jev_reply_payload(*, usage: dict | None = None) -> dict:
+    """A valid choice answer for ``_QUESTION``, optionally carrying a ``usage`` field."""
+    payload = {
+        "answers": {"operation": {"choice": "a", "probabilities": {"a": 1.0, "b": 0.0}, "confidence": 1.0}},
+        "model": "jev-fake",
+    }
+    if usage is not None:
+        payload["usage"] = usage
+    return payload
+
+
+def _priced() -> ChatPrices:
+    return ChatPrices(usd_per_input_token=1e-6, usd_per_output_token=2e-6, usd_per_cached_input_token=1e-6)
+
+
+def _jev_proxy(payload: dict) -> CountingDecisionModel:
+    from s1a.decision_models.jev import JevModel
+
+    return CountingDecisionModel(JevModel(_JevTransport(payload)))
+
+
+def test_jev_reply_without_usage_marks_the_call_and_the_cost_unknown() -> None:
+    proxy = _jev_proxy(_jev_reply_payload())  # no usage key: the backend reported none
+    decision = asyncio.run(proxy.decide_many(Observation({"x": 1}), {"operation": _QUESTION}, attempts=2))
+
+    assert decision.choice("operation").key == "a"
+    assert len(proxy.calls) == 1, "a valid answer is one call"
+    assert proxy.calls[0]["usage_known"] is False
+    assert proxy.usage_known is False
+    cost, basis = _cost(
+        usage_known=True,
+        decision_usage_known=proxy.usage_known,
+        jev_input_tokens=proxy.calls[0]["input_tokens"],
+        chat_input_tokens=0,
+        chat_output_tokens=0,
+        chat_cache_tokens=0,
+        prices=_priced(),
+    )
+    assert cost is None and "decision call did not report usage" in basis
+
+
+def test_jev_reply_with_explicit_zero_usage_is_known() -> None:
+    proxy = _jev_proxy(_jev_reply_payload(usage={"input_tokens": 0, "output_tokens": 0}))
+    asyncio.run(proxy.decide_many(Observation({"x": 1}), {"operation": _QUESTION}, attempts=2))
+
+    assert proxy.calls[0]["usage_known"] is True, "an explicit zero is reported, not missing"
+    assert proxy.usage_known is True
+    cost, _ = _cost(
+        usage_known=True,
+        decision_usage_known=proxy.usage_known,
+        jev_input_tokens=0,
+        chat_input_tokens=0,
+        chat_output_tokens=0,
+        chat_cache_tokens=0,
+        prices=_priced(),
+    )
+    assert cost == 0.0, "known zero usage with configured prices is a zero estimate, never unknown"
+
+
+@pytest.mark.parametrize("bad", [{"input_tokens": -1}, {"input_tokens": True}, {"input_tokens": 1.5}, {}])
+def test_jev_reply_with_malformed_usage_is_unknown(bad: dict) -> None:
+    proxy = _jev_proxy(_jev_reply_payload(usage=bad))
+    asyncio.run(proxy.decide_many(Observation({"x": 1}), {"operation": _QUESTION}, attempts=2))
+
+    assert proxy.calls[0]["usage_known"] is False
+    assert proxy.usage_known is False
+
+
+def test_jev_reply_with_a_valid_input_only_usage_is_known() -> None:
+    proxy = _jev_proxy(_jev_reply_payload(usage={"input_tokens": 9}))
+    asyncio.run(proxy.decide_many(Observation({"x": 1}), {"operation": _QUESTION}, attempts=2))
+
+    assert proxy.calls[0]["input_tokens"] == 9
+    assert proxy.calls[0]["usage_known"] is True, "an input-only usage is valid: output may stay zero"
+
+
 @pytest.mark.parametrize("bills_input_tokens", [False, True])
 def test_proxy_preserves_the_inner_interface(bills_input_tokens: bool) -> None:
     inner = _FakeDecisionModel(model="fake-v9")
@@ -272,6 +368,38 @@ def test_play_trial_keeps_a_verified_post_and_marks_errored_when_browse_raises(m
     assert trial.errored is True, "the run still raised after the POST: verified and errored are independent"
     assert trial.error == "RuntimeError", "the summary is the exception type, never the provider's message"
     assert "sk-secret" not in json.dumps(trial.as_json())
+    assert trial.oracle["verified"] is True and trial.oracle["submissions"]
+
+
+def test_play_trial_keeps_a_verified_post_and_a_returned_finalization_timeout(monkeypatch, tmp_path) -> None:
+    task, tasks = NORMAL, (NORMAL,)
+    with start_fixture(tasks) as fixture:
+
+        async def fake_browse(spec, policy, **kwargs):  # noqa: ANN001, ANN003 - mirrors browse's signature loosely
+            post_submit(fixture, task, task.expected_value)  # the real POST this trial's own fixture records
+            return {"status": None, "error": "timeout after 180 s", "report": {}, "ticks": []}
+
+        monkeypatch.setattr(live.browse, "browse", fake_browse)
+        trial = asyncio.run(
+            play_trial(
+                fixture,
+                task,
+                "on",
+                0,
+                config=LiveConfig(),
+                logs_dir=tmp_path / "logs",
+                tasks=tasks,
+                model_name="jev",
+                chat=_fake_chat(),
+                decision_model=_FakeDecisionModel(),
+                prices=None,
+            )
+        )
+
+    assert trial.verified is True, "the fixture recorded the real POST"
+    assert trial.errored is True, "browse returned a timeout instead of raising: it must still fail the trial"
+    assert trial.error == "timeout after 180 s"
+    assert trial.terminal == "verified"
     assert trial.oracle["verified"] is True and trial.oracle["submissions"]
 
 

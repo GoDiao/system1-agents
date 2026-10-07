@@ -355,7 +355,8 @@ class TestBrowserRecoveryBudget(IsolatedAsyncioTestCase):
         recovery = summary["recovery"]
         self.assertEqual((summary["status"], recovery["failed"]), ("BLOCKED", True))
         self.assertEqual((recovery["termination"], recovery["stage"]), ("error", "planner"))
-        self.assertIn("planner down", recovery["error"])
+        self.assertEqual(recovery["error"], "recovery planner failed: RuntimeError")
+        self.assertNotIn("planner down", json.dumps(summary))
 
     async def test_an_empty_or_whitespace_plan_is_a_planner_failure(self) -> None:
         for plan in ("", "   ", "\n\t ", None):
@@ -458,6 +459,24 @@ class TestBrowserRecoveryBudget(IsolatedAsyncioTestCase):
         self.assertIn("permission flow", recovery["next_action"])
         self.assertIn("leave the task blocked", recovery["next_action"])
         self.assertNotIn("unsafe_dev", recovery["next_action"])
+
+    async def test_a_provider_error_never_persists_a_key(self) -> None:
+        fake_key = "sk-FAKE-SECRET-abcdef123456"
+        slot = _slot(
+            [_type() for _ in range(3)],
+            runtime=_RecoveryProbeRuntime(),
+            fallback=_planner_fallback(error=RuntimeError(f"provider exploded near token={fake_key}")),
+        )
+
+        for _ in range(3):
+            await slot.invoke(_MESSAGES, tools=_TOOLS)
+        terminal = await slot.invoke(_MESSAGES, tools=_TOOLS)
+        summary = json.loads(terminal.content)
+
+        persisted = json.dumps({"summary": summary, "report": slot.report()})
+        self.assertNotIn(fake_key, persisted, "a provider error can echo a credential and is never stored")
+        self.assertEqual(summary["recovery"]["error"], "recovery planner failed: RuntimeError")
+        self.assertIn("start a new task", summary["next_action"])
 
     async def test_a_cancelled_recovery_keeps_its_event(self) -> None:
         gate = asyncio.Event()

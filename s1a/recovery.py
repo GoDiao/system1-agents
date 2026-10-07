@@ -27,6 +27,17 @@ class RecoveryExhausted(RuntimeError):
 _PERMISSION_MARKERS = ("permission", "not allowed", "forbidden", "unauthorized", "denied", "accessibility", "403")
 
 
+def recovery_failure_reason(exc: BaseException) -> str:
+    """A small stable reason for a failed recovery call: its exception type, never the provider's message.
+
+    A provider error can echo a response body or a credential, so its text is never persisted. A permission wall is
+    named by a short stable phrase, so ``recovery_next_action`` still routes it through the permission flow.
+    """
+    if any(marker in str(exc).lower() for marker in _PERMISSION_MARKERS):
+        return "permission denied"
+    return type(exc).__name__
+
+
 def recovery_next_action(*, termination: str | None, stage: str | None = None, error: str | None = None) -> str:
     """One short, actionable next step for a bounded recovery that stopped without settling the task.
 

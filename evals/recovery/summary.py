@@ -10,10 +10,108 @@ deltas for model calls, elapsed seconds and wasted actions.
 from __future__ import annotations
 
 import statistics
+from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
 ARMS = ("off", "on")
+
+
+def rate(count: int, planned: int) -> float | None:
+    """A rounded completion rate, or ``None`` when nothing was planned (never a division by zero)."""
+    return round(count / planned, 3) if planned else None
+
+
+def mean(values: Iterable[float], digits: int) -> float | None:
+    """The rounded arithmetic mean of the values, or ``None`` when there are none."""
+    data = list(values)
+    return round(statistics.mean(data), digits) if data else None
+
+
+def coverage(records: Sequence[Any]) -> dict[str, Any]:
+    """The shared arm denominator: every planned record counts, verified by its own oracle, errors included."""
+    planned = len(records)
+    verified = sum(1 for record in records if record.verified)
+    return {
+        "planned": planned,
+        "verified": verified,
+        "errored": sum(1 for record in records if record.errored),
+        "completion_rate": rate(verified, planned),
+    }
+
+
+def pair_outcomes(records: Sequence[Any]) -> tuple[dict[str, Any], list[tuple[Any, Any]]]:
+    """Pair every record by (task, repeat): the shared paired-verification counts and the complete off/on pairs.
+
+    A record whose partner is missing is an incomplete pair, never silently dropped; the returned complete pairs let
+    each frontend compute its own on-minus-off deltas without repeating the grouping.
+    """
+    by_pair: dict[tuple[str, int], dict[str, Any]] = {}
+    for record in records:
+        by_pair.setdefault((record.task, record.repeat), {})[record.arm] = record
+    complete: list[tuple[Any, Any]] = []
+    both = off_only = on_only = neither = incomplete = 0
+    for arms in by_pair.values():
+        off, on = arms.get("off"), arms.get("on")
+        if off is None or on is None:
+            incomplete += 1
+            continue
+        complete.append((off, on))
+        if off.verified and on.verified:
+            both += 1
+        elif on.verified:
+            on_only += 1
+        elif off.verified:
+            off_only += 1
+        else:
+            neither += 1
+    return {
+        "pairs": len(by_pair) - incomplete,
+        "incomplete_pairs": incomplete,
+        "both_verified": both,
+        "off_only_verified": off_only,
+        "on_only_verified": on_only,
+        "neither_verified": neither,
+    }, complete
+
+
+def on_minus_off_completion_rate(arms: dict[str, Any]) -> float | None:
+    """The on arm's completion rate minus the off arm's, or ``None`` unless both arms planned trials."""
+    off, on = arms.get("off"), arms.get("on")
+    if not off or not on or not off.get("planned") or not on.get("planned"):
+        return None
+    return round((on["verified"] / on["planned"]) - (off["verified"] / off["planned"]), 3)
+
+
+def paired_completion_line(paired: dict[str, Any]) -> str:
+    """The shared "Paired completion per (task, repeat)" sentence every frontend's markdown carries."""
+    return (
+        "Paired completion per (task, repeat): "
+        f"on-only {paired['on_only_verified']}, off-only {paired['off_only_verified']}, "
+        f"both {paired['both_verified']}, neither {paired['neither_verified']}."
+    )
+
+
+def paired_delta_line(paired: dict[str, Any], **named: Any) -> str:
+    """The shared paired on-minus-off deltas sentence, over the named ``paired`` keys and their human labels."""
+    return (
+        "Paired mean on-minus-off deltas: " + ", ".join(f"{label} {paired[key]}" for key, label in named.items()) + "."
+    )
+
+
+def summary_tables(summary: dict[str, Any], metrics: Sequence[tuple[str, str]]) -> list[str]:
+    """The arm and task tables shared by the three recovery reports."""
+    labels = ["arm", "planned", "verified", "completion", *(label for label, _ in metrics)]
+    fields = ["planned", "verified", "completion_rate", *(key for _, key in metrics)]
+    lines = ["| " + " | ".join(labels) + " |", "|" + "|".join("---" for _ in labels) + "|"]
+    for arm, block in summary["arms"].items():
+        lines.append("| " + " | ".join(str(value) for value in [arm, *(block[key] for key in fields)]) + " |")
+    lines += ["", "| task | arm | planned | verified | completion |", "|---|---|---|---|---|"]
+    for task, arms in summary["by_task"].items():
+        for arm in summary["arms"]:
+            block = arms[arm]
+            lines.append(f"| {task} | {arm} | {block['planned']} | {block['verified']} | {block['completion_rate']} |")
+    return lines
 
 
 @dataclass
@@ -47,19 +145,11 @@ class TrialRecord:
         return asdict(self)
 
 
-def _rate(count: int, planned: int) -> float | None:
-    return round(count / planned, 3) if planned else None
-
-
 def _arm_block(records: list[TrialRecord]) -> dict[str, Any]:
-    planned = len(records)
-    verified = sum(record.verified for record in records)
+    block = coverage(records)
     costs = [record.cost_usd for record in records]
     return {
-        "planned": planned,
-        "verified": verified,
-        "errored": sum(record.errored for record in records),
-        "completion_rate": _rate(verified, planned),
+        **block,
         "recovery_attempts": sum(record.recovery_attempts for record in records),
         "recovery_spent_s": round(sum(record.recovery_spent_s for record in records), 3),
         "recovery_failed": sum(record.recovery_failed for record in records),
@@ -68,9 +158,9 @@ def _arm_block(records: list[TrialRecord]) -> dict[str, Any]:
         "decision_calls": sum(record.decision_calls for record in records),
         "planner_calls": sum(record.planner_calls for record in records),
         "chat_calls": sum(record.chat_calls for record in records),
-        "mean_model_calls": round(statistics.mean(r.model_calls for r in records), 2) if records else None,
-        "mean_elapsed_s": round(statistics.mean(r.elapsed_s for r in records), 3) if records else None,
-        "mean_wasted_actions": round(statistics.mean(r.wasted_actions for r in records), 2) if records else None,
+        "mean_model_calls": mean((r.model_calls for r in records), 2),
+        "mean_elapsed_s": mean((r.elapsed_s for r in records), 3),
+        "mean_wasted_actions": mean((r.wasted_actions for r in records), 2),
         "decisions_ms": sum(record.decisions_ms for record in records),
         "recorded_probe_ms": sum(record.recorded_probe_ms for record in records),
         "cost_usd": round(sum(costs), 6) if costs else 0.0,
@@ -85,51 +175,19 @@ def paired_summary(records: list[TrialRecord]) -> dict[str, Any]:
         task: {arm: _arm_block([r for r in records if r.arm == arm and r.task == task]) for arm in ARMS}
         for task in tasks
     }
-    pairs: dict[tuple[str, int], dict[str, TrialRecord]] = {}
-    for record in records:
-        pairs.setdefault((record.task, record.repeat), {})[record.arm] = record
-    both = off_only = on_only = neither = incomplete = 0
-    delta_model_calls: list[int] = []
-    delta_elapsed_s: list[float] = []
-    delta_wasted_actions: list[int] = []
-    for arm_records in pairs.values():
-        off, on = arm_records.get("off"), arm_records.get("on")
-        if off is None or on is None:
-            incomplete += 1
-            continue
-        delta_model_calls.append(on.model_calls - off.model_calls)
-        delta_elapsed_s.append(round(on.elapsed_s - off.elapsed_s, 3))
-        delta_wasted_actions.append(on.wasted_actions - off.wasted_actions)
-        if off.verified and on.verified:
-            both += 1
-        elif on.verified:
-            on_only += 1
-        elif off.verified:
-            off_only += 1
-        else:
-            neither += 1
-    off_rate = arms["off"]["verified"] / arms["off"]["planned"] if arms["off"]["planned"] else None
-    on_rate = arms["on"]["verified"] / arms["on"]["planned"] if arms["on"]["planned"] else None
+    paired, complete = pair_outcomes(records)
+    paired = {
+        **paired,
+        "mean_delta_model_calls": mean((on.model_calls - off.model_calls for off, on in complete), 2),
+        "mean_delta_elapsed_s": mean((round(on.elapsed_s - off.elapsed_s, 3) for off, on in complete), 3),
+        "mean_delta_wasted_actions": mean((on.wasted_actions - off.wasted_actions for off, on in complete), 2),
+    }
     return {
         "planned_trials": len(records),
         "arms": arms,
         "by_task": by_task,
-        "paired": {
-            "pairs": len(pairs) - incomplete,
-            "incomplete_pairs": incomplete,
-            "both_verified": both,
-            "off_only_verified": off_only,
-            "on_only_verified": on_only,
-            "neither_verified": neither,
-            "mean_delta_model_calls": round(statistics.mean(delta_model_calls), 2) if delta_model_calls else None,
-            "mean_delta_elapsed_s": round(statistics.mean(delta_elapsed_s), 3) if delta_elapsed_s else None,
-            "mean_delta_wasted_actions": (
-                round(statistics.mean(delta_wasted_actions), 2) if delta_wasted_actions else None
-            ),
-        },
-        "on_minus_off_completion_rate": (
-            round(on_rate - off_rate, 3) if on_rate is not None and off_rate is not None else None
-        ),
+        "paired": paired,
+        "on_minus_off_completion_rate": on_minus_off_completion_rate(arms),
         "note": (
             "scripted doubles: controlled fault injection to exercise recovery, not a trained model; "
             "cost is 0 by construction, not a real API bill; starts/timeouts/failures count in every denominator."
@@ -144,31 +202,30 @@ def render_markdown(summary: dict[str, Any]) -> str:
         "",
         f"Planned trials: {summary['planned_trials']} (errors and timeouts included, never dropped).",
         "",
-        "| arm | planned | verified | completion | errored | recovery attempts | mean model calls | mean elapsed s | wasted actions |",
-        "|---|---|---|---|---|---|---|---|---|",
     ]
-    for arm in ARMS:
-        block = summary["arms"][arm]
-        lines.append(
-            f"| {arm} | {block['planned']} | {block['verified']} | {block['completion_rate']} | {block['errored']} | "
-            f"{block['recovery_attempts']} | {block['mean_model_calls']} | {block['mean_elapsed_s']} | "
-            f"{block['wasted_actions']} |"
-        )
-    lines += ["", "| task | arm | planned | verified | completion |", "|---|---|---|---|---|"]
-    for task, arms in summary["by_task"].items():
-        for arm in ARMS:
-            block = arms[arm]
-            lines.append(f"| {task} | {arm} | {block['planned']} | {block['verified']} | {block['completion_rate']} |")
+    lines += summary_tables(
+        summary,
+        [
+            ("errored", "errored"),
+            ("recovery attempts", "recovery_attempts"),
+            ("mean model calls", "mean_model_calls"),
+            ("mean elapsed s", "mean_elapsed_s"),
+            ("wasted actions", "wasted_actions"),
+        ],
+    )
     paired = summary["paired"]
     lines += [
         "",
-        "Paired completion per (task, repeat): "
-        f"on-only {paired['on_only_verified']}, off-only {paired['off_only_verified']}, "
-        f"both {paired['both_verified']}, neither {paired['neither_verified']}.",
+        paired_completion_line(paired),
         f"On minus off completion rate: {summary['on_minus_off_completion_rate']}.",
-        "Paired mean on-minus-off deltas: "
-        f"model calls {paired['mean_delta_model_calls']}, elapsed s {paired['mean_delta_elapsed_s']}, "
-        f"wasted actions {paired['mean_delta_wasted_actions']}.",
+        paired_delta_line(
+            paired,
+            **{
+                "mean_delta_model_calls": "model calls",
+                "mean_delta_elapsed_s": "elapsed s",
+                "mean_delta_wasted_actions": "wasted actions",
+            },
+        ),
         "",
         f"Note: {summary['note']}",
         "",

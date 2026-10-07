@@ -428,11 +428,20 @@ class TestBrowserDecisionModel(IsolatedAsyncioTestCase):
 
         tick = slot_model.ticks[0]
         self.assertEqual((tick["decision_ms"], tick["input_tokens"], tick["output_tokens"]), (7, 315, 0))
+        self.assertTrue(tick["usage_known"])
         self.assertEqual((tick["operation"], tick["target"], tick["confidence"]), ("CLICK", "Search", 0.9))
         self.assertEqual(tick["probabilities"], {"1": 0.9, "2": 0.1}, "the click head's probabilities, for the replay")
         self.assertEqual(tick["candidates"]["1"], "Search")
         report = slot_model.report()
         self.assertEqual((report["decisions"], report["median_decision_ms"], report["jev_input_tokens"]), (1, 7, 315))
+
+    async def test_a_tick_marks_usage_unknown_when_the_backend_did_not_report_it(self) -> None:
+        from s1a.decision_models import ScriptedModel
+
+        decision_model = ScriptedModel(latency_ms=3, usage=Usage(known=False), model="laya-rl-agent")
+        slot_model = _slot_model([], goal_value_cache=False, decision_model=decision_model)
+        await slot_model.invoke(_MESSAGES, tools=_TOOLS)
+        self.assertFalse(slot_model.ticks[0]["usage_known"], "missing usage stays distinct from an explicit zero")
 
     async def test_report_prices_input_tokens_by_backend_flag(self) -> None:
         """The scripted backend's token usage is priced only when it opts into the Jev input rate."""

@@ -13,6 +13,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 ### Fixed
 
+- Desktop recovery resets its detection window on observed progress without resetting its cumulative budget.
+- Recovery errors omit provider exception bodies, and tool episodes retain the full structured terminal and
+  permission-flow next step separately from shortened display output.
+- Recovery evaluation preserves timeouts after verified submissions, escapes submitted result text, and keeps
+  missing decision usage distinct from reported zero tokens. Paired reports share call-count conventions.
 - Custom recovery tasks now reach each trial's fixture with their requested routes, page behavior and submission
   validation.
 - Bounded recovery treats an empty, whitespace-only or otherwise blank planner answer (browser and desktop) as a

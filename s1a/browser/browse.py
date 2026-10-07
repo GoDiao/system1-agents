@@ -114,16 +114,19 @@ def finish_decision_model(answer: Answer, *, model_name: str) -> Answer:
     return answer
 
 
-def usage_summary(calls: list[dict[str, Any]], *, jev_input_tokens: int, decisions: int) -> dict[str, Any]:
+def usage_summary(
+    calls: list[dict[str, Any]], *, jev_input_tokens: int, decisions: int, decision_usage_known: bool = True
+) -> dict[str, Any]:
     """Counts and dollars for one task: decisions, the chat model's calls and tokens, Jev's input tokens, the sum in USD.
 
     A failed or cancelled call is in ``calls`` with unknown usage: its tokens cannot be summed, so the task's
     ``cost_usd`` is None (unknown), never zero, and ``usage_known`` is False with the count in ``unknown_calls``.
+    ``decision_usage_known`` carries a decision reply that did not report its usage, so a partial sum is not billed.
     """
     chat_in = sum(int(call["input_tokens"]) for call in calls)
     chat_out = sum(int(call["output_tokens"]) for call in calls)
     chat_cached = sum(int(call.get("cache_tokens") or 0) for call in calls)
-    complete = usage_known(calls)
+    complete = usage_known(calls) and decision_usage_known
     unknown_calls = len([call for call in calls if not call.get("usage_known", True)])
     prices = chat_prices(first_env("MODEL_NAME")) if chat_in + chat_out else None
     return {
@@ -213,7 +216,12 @@ async def browse(
             answer = await run_task(agent, goal, timeout_s=timeout_s)
             report = slot_model.report()
             answer["usage"] = await asyncio.to_thread(  # the price catalogue fetch is a blocking HTTP call
-                usage_summary, calls, jev_input_tokens=report["jev_input_tokens"], decisions=report["decisions"]
+                usage_summary,
+                calls,
+                jev_input_tokens=report["jev_input_tokens"],
+                decisions=report["decisions"],
+                # A decision tick that did not report usage makes the task's total unknown, never a confirmed zero.
+                decision_usage_known=all(tick.get("usage_known", True) for tick in slot_model.ticks),
             )
             answer["report"], answer["ticks"] = report, slot_model.ticks
             (logs_dir / "decision_ticks.json").write_text(

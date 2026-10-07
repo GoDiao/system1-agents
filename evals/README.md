@@ -59,12 +59,14 @@ and not a real site. Scripted decisions cost 0 by construction; there is no real
 option) because real-model token usage and pricing are not implemented here. It writes the usual Harbor job folders
 under `evals/results/recovery/` and a paired `paired_summary.json`/`.md`. The paired completion counts every planned
 trial, errors and timeouts included, and pairs recovery off/on per (task, repeat); it also reports the paired mean
-on-minus-off deltas for model calls, elapsed seconds and wasted actions. Model calls are split into `decision_calls`,
-`planner_calls` and `chat_calls`. Timing stays separate: `elapsed_s` is the whole trial wall clock (not inference),
+on-minus-off deltas for model calls, elapsed seconds and wasted actions. All three recovery evaluators use
+`model_calls = decision_calls + chat_calls`; `planner_calls` is the subset of chat calls used for replanning and is
+never added again. Timing stays separate: `elapsed_s` is the whole trial wall clock (not inference),
 `decisions_ms` is the scripted decision time measured with `perf_counter` (near-zero and not a benchmark), and
 `recorded_probe_ms` sums recorded probe wall times (already including action settling). It excludes recovery,
 final and unticked probes, so it is a diagnostic rather than total environment time.
-`--repeat` must be >= 1 and arms and tasks must be valid; the CLI exits non-zero when a planned trial raised (harness error or timeout), while an expected terminal
+`--repeat` must be >= 1 and arms and tasks must be valid; the CLI exits non-zero when a planned trial reports a harness error or timeout,
+even if its form POST already verified, while an expected terminal
 score such as `BLOCKED` does not fail the run. Native Windows desktop recovery still needs a supported desktop
 machine.
 
@@ -92,13 +94,14 @@ server's recorded POST, never the model's `DONE`, and each trial opens its own f
 Counting is split and never conflated. Decision calls are counted by a thin proxy that appends its record at the
 `_decide` entry and fills the wall time and outcome in a `finally`-safe step, so retries after an unusable answer,
 raised calls and cancellations are counted for real (ticks are not a call count) and a failed call's tokens are
-unknown, not zero; the proxy preserves the inner model's `name`, `question_types`, `deterministic`, `supports_images`,
+unknown, not zero. A successful reply with missing or malformed usage also stays unknown; an explicitly
+reported zero remains a known zero. The proxy preserves the inner model's `name`, `question_types`, `deterministic`, `supports_images`,
 `model`, `warm` and `close`. Planner attempts are counted from the production recovery events whose `stage ==
 "planner"` (a planner call is also inside `chat_calls`, and the two are never summed). Chat call counts and tokens
 come from the production `CountingModel` that `browse` wraps around the chat model; when a trial raises before that
 summary exists they are taken from the outer `CountingModel`, which records the same real calls. A trial that raises
 inside `browse` keeps its decision/chat counters and its fixture oracle: `verified` (the fixture's recorded POST) and
-`errored` (the run raised) are independent, and only a trial that failed before the browser existed falls back to a
+`errored` (a returned or raised run error) are independent, and only a trial that failed before the browser existed falls back to a
 fabricated record. `cost_usd` is `null` by default, because the live eval never reads a provider catalogue; only an
 explicit `CHAT_USD_PER_M_*` configuration values a trial, and that value is labelled an estimate, not a bill. Even
 then a trial stays `null` when any chat or decision call did not report usage. (The production browser path's own
@@ -113,7 +116,8 @@ planned trial, errors and timeouts included), `summary.json` and `summary.md` (p
 recovery events/terminations, decision/planner/chat attempt counts and timings, wasted actions, token-known status).
 Each finished trial is also written on its own under `trials/`, so a batch scheduler's kill does not erase completed
 evidence; there is no resume engine. `--repeat` must be >= 1 and the arms/tasks must be valid; the CLI exits
-non-zero when a planned trial raised or could not be set up. The result is honest about its scope: three small
+non-zero when a planned trial reports a run error or could not be set up, including a timeout after a verified
+POST. The result is honest about its scope: three small
 synthetic pages driven by a real model, not an open-task success rate, and recovery may not trigger at all.
 
 #### Opt-in server-side validation (exploratory follow-up)
@@ -151,11 +155,12 @@ S1A_DESKTOP_TESTS=1 S1A_DESKTOP_DRIVER=/path/to/cua-driver.exe \
   pytest -q tests/system/test_recovery_desktop.py
 ```
 
-Each run gets a fresh directory, with a paired summary and Harbor job records. `--resume` explicitly reuses saved
-trials from the specified run id; omit it for a new experiment. Errors/timeouts remain in the planned denominator
+Each run gets a fresh directory, with a paired summary and Harbor job records. Every fixture is launched once;
+a failed launch is recorded as an error. Errors/timeouts remain in the planned denominator
 and cause a nonzero CLI exit; expected blocked tasks do not. The report records actual planner calls, accepted
 actions whose observed progress did not change, recovery budgets, and the operator next action recorded by the
-runtime. It does not invent an escalation in the evaluator. Trial time includes fixture startup and the agent
+runtime in `episode.extra.terminal`, separately from the shortened display output. It does not invent an escalation
+in the evaluator. Trial time includes fixture startup and the agent
 episode, but excludes the shared compiler and driver startup.
 
 The system test is skipped unless explicitly enabled. Driver binaries, generated fixture executables, environments

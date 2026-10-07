@@ -47,6 +47,18 @@ class FailingPlanner:
         raise build_error(StatusCode.MODEL_CALL_FAILED, error_msg="chat endpoint returned HTTP 401")
 
 
+class _LeakyPlanner:
+    """A planner whose failure message echoes a credential: the rail must persist only the stable type."""
+
+    def __init__(self, secret: str) -> None:
+        self._secret = secret
+        self.calls = 0
+
+    async def invoke(self, messages: Any, **kwargs: Any) -> AssistantMessage:
+        self.calls += 1
+        raise RuntimeError(f"provider exploded near token={self._secret}")
+
+
 class BlankPlanner:
     """A planner whose reply normalizes to nothing: the bounded branch must read it as a failure, not a plan.
 
@@ -361,6 +373,104 @@ class TestBoundedRethink(IsolatedAsyncioTestCase):
         self.assertEqual(frozen.blocked, {"LEFT"})
         self.assertEqual(frozen.rethinks, [{"kind": "repeat", "step": 2, "key": "LEFT"}])
 
+    async def test_a_changed_display_needs_three_subsequent_noops_to_stall(self) -> None:
+        state, refresh = EvalState(), FakeRefresh()
+        guard = bounded_rail(state, refresh, planner=FakePlanner(), stall_after=3)
+        for value in ("1", "12", "12", "12"):
+            refresh.state = {"progress": {"display": value}}
+            await guard.after_tool_call(act("type", 0, state=refresh.state))
+        self.assertEqual(refresh.calls, 0, "only two actions were ineffective after the display changed")
+        await guard.after_tool_call(act("type", 0, state=refresh.state))
+        self.assertEqual(refresh.calls, 1, "the third unchanged action triggers recovery")
+
+    async def test_a_score_increase_clears_both_noop_and_cycle_detection(self) -> None:
+        for values in (("1", "1", "1"), ("1", "2", "1", "2")):
+            with self.subTest(values=values):
+                state, refresh = EvalState(), FakeRefresh()
+                guard = bounded_rail(state, refresh, planner=FakePlanner(), stall_after=3)
+                for index, value in enumerate(values):
+                    refresh.state = {"progress": {"display": value}}
+                    score = float(index == len(values) - 1)
+                    await guard.after_tool_call(act("type", score, state=refresh.state))
+                self.assertEqual(refresh.calls, 0, "score progress must suppress a stale no-op or cycle window")
+
+    async def test_a_moving_desktop_display_is_progress_even_with_a_frozen_score(self) -> None:
+        # The reviewer's exact shape: score stays 0 until the task finishes, so only the display digest moves.
+        state, refresh, planner = EvalState(), FakeRefresh(), FakePlanner()
+        guard = bounded_rail(
+            state,
+            refresh,
+            planner=planner,
+            stall_after=3,
+            limits=RecoveryLimits(max_attempts=2, timeout_s=5.0),
+        )
+        for display in ("1", "12", "12", "123", "1234", "1234", "12345", "123456", "123456"):
+            await guard.after_tool_call(act("LEFT", 0, state={"progress": {"display": display}}))
+        self.assertEqual(state.rethinks, [], "a moved display is progress, not a stall")
+        self.assertFalse(state.give_up)
+        self.assertEqual((refresh.calls, state.plan), (0, ""))
+
+    async def test_a_real_noop_desktop_stall_still_recovers(self) -> None:
+        state, refresh, planner = EvalState(), FakeRefresh({"progress": {"display": "1"}}), FakePlanner()
+        guard = bounded_rail(state, refresh, planner=planner, stall_after=3)
+        for key in ("LEFT", "RIGHT", "UP"):
+            await guard.after_tool_call(act(key, 0, state={"progress": {"display": "1"}}))
+        self.assertEqual(refresh.calls, 1)
+        self.assertEqual(state.rethinks[-1]["termination"], "planned")
+        self.assertEqual(state.rethinks[-1]["attempt"], 1)
+
+    async def test_a_two_state_cycle_still_recovers(self) -> None:
+        # Every action changes the digest, so the no-op counter never fires; the A-B-A-B cycle must still recover.
+        state, refresh, planner = EvalState(), FakeRefresh(), FakePlanner()
+        guard = bounded_rail(state, refresh, planner=planner, stall_after=3)
+        for display in ("A", "B", "A", "B"):
+            await guard.after_tool_call(act("LEFT", 0, state={"progress": {"display": display}}))
+        self.assertEqual(refresh.calls, 1, "a two-state cycle is a stall even though each step moved")
+        self.assertEqual(state.rethinks[-1]["attempt"], 1)
+
+    async def test_progress_and_a_delayed_refresh_keep_the_global_budget(self) -> None:
+        state, planner = EvalState(), FakePlanner()
+        refresh = FakeRefresh({"progress": {"at": "B"}})
+        guard = bounded_rail(
+            state,
+            refresh,
+            planner=planner,
+            stall_after=2,
+            limits=RecoveryLimits(max_attempts=2, timeout_s=5.0),
+        )
+        for _ in range(2):  # two same-state acts: attempt 1, whose refresh shows delayed progress (no plan)
+            await guard.after_tool_call(act("LEFT", 0, state={"progress": {"at": "A"}}))
+        self.assertEqual(state.rethinks[-1]["termination"], "delayed_progress")
+        self.assertEqual(state.rethinks[-1]["attempt"], 1)
+        for _ in range(2):  # the window restarted: attempt 2 plans, still on the same global budget
+            await guard.after_tool_call(act("UP", 0, state={"progress": {"at": "B"}}))
+        self.assertEqual((state.rethinks[-1]["termination"], state.rethinks[-1]["attempt"]), ("planned", 2))
+        for _ in range(2):  # attempt 3 is refused before any refresh: the budget is global, not per window
+            await guard.after_tool_call(act("UP", 0, state={"progress": {"at": "B"}}))
+        self.assertTrue(state.give_up)
+        self.assertEqual([event["attempt"] for event in state.rethinks], [1, 2, 2])
+        self.assertEqual(refresh.calls, 2, "a spent budget never runs another refresh")
+
+    async def test_a_provider_error_never_persists_a_key(self) -> None:
+        fake_key = "sk-FAKE-SECRET-abcdef123456"
+        for leaky in ("refresh", "planner"):
+            with self.subTest(leaky=leaky):
+                state = EvalState()
+
+                async def boom() -> dict[str, Any]:
+                    raise RuntimeError(f"provider exploded near token={fake_key}")
+
+                async def fake_refresh() -> dict[str, Any]:
+                    return {"state": BOARD, "candidates": {"UP": ""}, "done": False, "score": 0.0}
+
+                planner = _LeakyPlanner(fake_key) if leaky == "planner" else FakePlanner()
+                guard = bounded_rail(state, boom if leaky == "refresh" else fake_refresh, planner=planner)
+                for key in ("LEFT", "RIGHT"):
+                    await guard.after_tool_call(act(key, 0))
+                persisted = json.dumps(state.rethinks) + str(state.error)
+                self.assertNotIn(fake_key, persisted, "the provider text can echo a credential and is never stored")
+                self.assertEqual(state.rethinks[-1]["error"], "RuntimeError")
+
     async def test_a_refresh_failure_carries_a_reason_and_an_actionable_next_step(self) -> None:
         state = EvalState()
 
@@ -372,7 +482,8 @@ class TestBoundedRethink(IsolatedAsyncioTestCase):
             await guard.after_tool_call(act(key, 0))
         event = state.rethinks[-1]
         self.assertEqual(event["termination"], "error")
-        self.assertIn("window gone", event["error"])
+        self.assertEqual(event["error"], "RuntimeError", "only the stable type is kept, never the provider text")
+        self.assertNotIn("window gone", str(event))
         self.assertIn("start a new task", event["next_action"])
         self.assertNotIn("unsafe_dev", event["next_action"])
 
@@ -495,7 +606,8 @@ class TestBoundedRethink(IsolatedAsyncioTestCase):
         guard = bounded_rail(state, boom, planner=FakePlanner())
         for key in ("LEFT", "RIGHT"):
             await guard.after_tool_call(act(key, 0))
-        self.assertEqual(state.error, "rethink refresh failed: window gone")
+        self.assertEqual(state.error, "rethink refresh failed: RuntimeError")
+        self.assertNotIn("window gone", state.error)
         self.assertEqual(state.rethinks[-1]["termination"], "error")
 
     async def test_a_failed_plan_is_recorded_and_stops_the_episode(self) -> None:
@@ -505,9 +617,10 @@ class TestBoundedRethink(IsolatedAsyncioTestCase):
         for key in ("LEFT", "RIGHT"):
             await guard.after_tool_call(act(key, 0))
         self.assertTrue(state.error.startswith("plan failed: "), state.error)
-        self.assertIn("HTTP 401", state.error)
+        self.assertNotIn("HTTP 401", state.error, "the provider's 401 text is never persisted")
         self.assertEqual(planner.calls, 1)
         self.assertEqual(state.rethinks[-1]["termination"], "error")
+        self.assertEqual(state.rethinks[-1]["error"], state.error.removeprefix("plan failed: "))
 
 
 class TestBoundedContract(TestCase):
