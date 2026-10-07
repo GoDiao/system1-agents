@@ -44,6 +44,9 @@ CLM_TIMEOUT_S = 30.0  # one 8B forward pass per cold candidate set, plus the enc
 CLM_HEALTH_TIMEOUT_S = 2.0
 DEFAULT_CLM_MODEL = "clm-latest"
 _RETRIED_TRANSPORT = (httpx.ConnectError, httpx.ConnectTimeout, httpx.RemoteProtocolError, httpx.ReadError)
+# What system1-omni's frontend answers when it cannot reach the engine behind it, or when it was too slow:
+# transient by construction, so one retry, as the sibling backend does for the same deployment shape.
+_RETRIED_STATUSES = frozenset({502, 504})
 _NOT_UP = (
     "clm-serve listens only once it has loaded the checkpoint, so it may still be starting; start it per "
     "system1-omni's recipe/clm/README.md (it needs an /v1/embeddings server beside it)"
@@ -163,6 +166,9 @@ class ClmClient:
                     StatusCode.MODEL_CALL_FAILED, cause=exc, error_msg=f"served CLM call failed at {self.url}: {exc}"
                 ) from exc
             ms = round((time.perf_counter() - started) * 1000)
+            if response.status_code in _RETRIED_STATUSES and not retried:
+                retried = True
+                continue
             if response.is_error:
                 raise build_error(
                     StatusCode.MODEL_CALL_FAILED,
@@ -212,6 +218,18 @@ class ClmModel(DecisionModel):
         self._served = await self._client.warm()
         self._warmed = True
 
+    def _served_by(self) -> Json:
+        """Who answered, from the ``/health`` reading: the URL asked, the names served, whether the engine has its
+        encoder, and the device its vector cache sits on. What the guidance means by worker/frontend provenance."""
+        cache = self._served.get("cache")
+        return {
+            "url": self._client.url,
+            "models": self._served.get("models"),
+            "embedder": self._served.get("embedder"),
+            "device": cache.get("device") if isinstance(cache, dict) else None,
+            "source": "health",
+        }
+
     async def _warm_once(self) -> None:
         """The agent fronts call ``warm()``; ``decide`` and ``probe`` do not, and their record should still say what
         answered. A failure here is the decision's to report, not this read's, so it is logged and dropped."""
@@ -242,7 +260,7 @@ class ClmModel(DecisionModel):
                 **payload,
                 "url": self._client.url,
                 "request_id": request_id,
-                "served_by": {"url": self._client.url, "models": self._served.get("models"), "source": "health"},
+                "served_by": self._served_by(),
                 "clm_latency_ms": lower.get("x-clm-latency-ms"),
             },
         )

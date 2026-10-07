@@ -61,7 +61,8 @@ Two things differ from the Jev-shaped body, and both follow from how CLM reads a
 Choice and noul, like the other served backends; a `score` question is not offered to it. Images are not read. The
 engine's decision is stable to six decimals for the same request, so the model is `deterministic` and an unusable
 answer is not re-asked — a second call would pay the encoder again for the same distribution. Every decision records
-the URL, the `X-Request-Id` it sent and the names `/health` reported; the agent fronts call `warm()` for that read,
+the URL, the `X-Request-Id` it sent and what `/health` reported — the names served, whether the engine has its
+encoder, and the device its vector cache sits on; the agent fronts call `warm()` for that read,
 and `decide` and `probe` make it once on their first decision instead.
 
 The engine keeps a candidate-vector cache across requests, which is the feature that makes it interesting and also
@@ -71,8 +72,14 @@ reason.
 
 ## What it measured
 
-On [ticket routing](../../evals/ticket_router/CLM.md): **6/30** with the tool loop's framing, against 51/90 for the
-keyword baseline, 63/90 for Laya and 17/90 for uniform random. The evidence page has the per-framing breakdown and
-the mechanism — the loop puts a ~900-character rules essay into `instructions` for every ticket, and the shared
-text dominates the state embedding until the decisions collapse. Feeding CLM a short state instead reaches ~50%,
-still below the keyword baseline. CLM is wired up and works; it is not the model to pick for this task yet.
+On [ticket routing](../../evals/ticket_router/CLM.md): **18/90 = 20%** with the tool loop's framing, against 51/90
+for the keyword baseline, 63/90 for Laya and 17/90 for uniform random — and every one of the three seeds gave
+exactly 6, because CLM answers `human` for all thirty tickets. `s1a probe evals/ticket_router/probe.jsonl --model
+clm` returns `4/12 (33%)`, **`not a decision-model task`**, against the repository's own 80% threshold, where the
+repository's keyword baseline scores 8/12 on the same cases.
+
+The evidence page has the mechanism, which is measured rather than argued: the loop puts a 696-character rules
+essay into `instructions`, identical for every ticket, and it raises the least alike pair of ticket embeddings from
++0.81 to +0.96 — thirty tickets the heads are then asked to tell apart. Feeding CLM a short question instead of the
+essay reaches 36–39/90, still below the keyword baseline. CLM is wired up and works; it is not the model to pick
+for this task yet.

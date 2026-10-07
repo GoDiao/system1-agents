@@ -82,8 +82,12 @@ Sending the same tickets, the same five queue descriptions and the same rules un
 |---|---|---:|
 | the observation as JSON | the rules | 18/90 |
 | the ticket as one sentence, then the rules | nothing | 18/90 |
+| the ticket as one sentence, then the rules | a short question | 36/90 |
 | the ticket as one sentence | a short question | 36/90 |
 | the ticket as one sentence | nothing | 39/90 |
+
+All five rows are in `compare_framings.py`; the third one is worth pointing at, because it differs from the second
+by nothing but a question this backend may not write, and that is the whole of the difference between 18 and 36.
 
 **These four rows are exploratory.** Twelve correct of thirty against six is Fisher exact p = 0.158 — a trend,
 not a result — and every interval here belongs to n=30. At the observed rates, about **sixty** tickets would put
@@ -116,7 +120,8 @@ curl -s http://127.0.0.1:8080/health      # omni-jev, with clm-serve behind it
 CLM_URL=http://127.0.0.1:8080 s1a run ticket_router --model clm --rethink off \
   --episodes 1 --seed 0 --showcase --log
   30 decisions, every one `human`, median 123 ms   mean_score 6.0
-  served_by {"url": "http://127.0.0.1:8080", "models": ["clm-latest", "clm-raw"], "source": "health"}
+  served_by {"url": "http://127.0.0.1:8080", "models": ["clm-latest", "clm-raw"],
+             "embedder": true, "device": "cuda", "source": "health"}
   answered {'human': 30}    correct 6/30 routed as labelled
 ```
 

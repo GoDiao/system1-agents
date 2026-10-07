@@ -26,6 +26,7 @@ from s1a.cli import DECIDE_MODEL_NAMES
 from s1a.decision_models import DECISION_MODEL_NAMES, ChoiceQuestion, NoulQuestion, Observation
 from s1a.decision_models.clm import ClmClient, ClmModel, clm_question
 from s1a.rails import RAIL_MODEL_NAMES
+from s1a.agents.ticket_router import RULES, TicketRouterEnv
 from s1a.tool.loop import MODEL_NAMES
 from tests.decision_model_contract import DecisionModelContract
 
@@ -70,7 +71,11 @@ class Server:
     def __init__(self, script: list[httpx.Response] | None = None, models: dict[str, Any] | None = None) -> None:
         self.script = list(script or [])
         # /health answers from here, which is also how a test makes the readiness read itself fail.
-        self.models: Any = models if models is not None else {"ok": True, "models": ["clm-latest", "clm-raw"]}
+        self.models: Any = (
+            models
+            if models is not None
+            else {"ok": True, "embedder": True, "models": ["clm-latest", "clm-raw"], "cache": {"device": "cuda"}}
+        )
         self.requests: list[httpx.Request] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
@@ -193,6 +198,8 @@ class TestClmModel(IsolatedAsyncioTestCase):
         self.assertEqual(decision.provenance["url"], URL)
         self.assertEqual(len(decision.provenance["request_id"]), 32)
         self.assertEqual(decision.provenance["served_by"]["models"], server.models["models"])
+        self.assertEqual(decision.provenance["served_by"]["device"], "cuda")
+        self.assertIs(decision.provenance["served_by"]["embedder"], True)
 
     async def test_the_readiness_read_happens_once(self) -> None:
         server = Server()
@@ -325,3 +332,42 @@ class TestRecordedResponses(IsolatedAsyncioTestCase):
         entry = recorded("models")
         served = await Server(models=entry["body"]).model()._client.warm()
         self.assertEqual([m["name"] for m in served["models"]], ["clm-latest", "clm-raw"])
+
+
+class TestWhatTheLoopSends(IsolatedAsyncioTestCase):
+    """The claim the ticket-router evidence rests on: the backend is a faithful translation.
+
+    Nothing the loop produced is dropped or rewritten on the way to the engine — the state is the observation, the
+    criteria are the environment's candidates, and the rules survive in full. This was a one-off script while the
+    question was open; it is a test now, because it is the thing a reviewer has to take on trust otherwise.
+    """
+
+    async def test_the_loops_own_request_reaches_the_wire_unchanged(self) -> None:
+        env = TicketRouterEnv(seed=0, batch_size=1)
+        await env.reset()
+        observation = await env.observe()
+        candidates = await env.candidates()
+        question = ChoiceQuestion(candidates, rules=RULES)  # exactly what s1a/tool/models.py builds
+
+        server = Server()
+        await server.model().decide_many(Observation(observation), {"pick": question})
+        body = json.loads(server.requests[-1].content)
+
+        self.assertEqual(body["state"], observation)
+        self.assertEqual(body["questions"]["pick"]["criteria"], candidates)
+        self.assertIn(RULES, body["questions"]["pick"]["instructions"])
+        self.assertEqual(set(body["questions"]["pick"]["criteria"]), set(candidates))
+
+    async def test_a_transient_gateway_status_is_retried_once(self) -> None:
+        """omni-jev answers 502 when it cannot reach the engine behind it and 504 when it was too slow."""
+        for status in (502, 504):
+            with self.subTest(status=status):
+                server = Server(
+                    script=[
+                        httpx.Response(status, text="backend unavailable"),
+                        ok(answer_for({"model": "clm-latest", "questions": {"pick": clm_question(PICK)}})),
+                    ]
+                )
+                decision = await server.model().decide_many(OBSERVATION, {"pick": PICK})
+                self.assertEqual(decision.choice("pick").key, "billing")
+                self.assertEqual(len([r for r in server.requests if r.url.path == "/v1/systemone"]), 2)
