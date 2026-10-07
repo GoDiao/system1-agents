@@ -52,6 +52,7 @@ def grounded_option(key: str, description: str | Json, observation: Observation)
 
 class CuaFourBModel(DecisionModel):
     name = "cua"
+    bills_input_tokens = False
     question_types = frozenset({"choice"})
     deterministic = True
 

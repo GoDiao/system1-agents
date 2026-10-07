@@ -46,7 +46,7 @@ cua = [  # Cua-S1 Nano behind --model cua; pinned to the Cua PR that ships the c
     "huggingface-hub>=0.24",
 ]
 cua-four-b = ["system1-agents[cua]", "transformers>=5.10.1,<6", "peft>=0.21,<1", "torchvision>=0.15", "pillow>=10"]
-dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6", "ty>=0.0.83"]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6", "ty>=0.0.83", "jsonschema>=4.18", "pyyaml>=6", "referencing>=0.30"]  # the last three check tests/data/served_laya against docs/api
 
 [build-system]
 requires = ["hatchling"]

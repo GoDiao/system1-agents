@@ -57,7 +57,120 @@ week for Python packages and one for the GitHub Actions.
   `s1a/run.py`. The missing-package line reads the extra name from there.
 - `uv lock` after any dependency change; CI checks the lock file.
 - Pull request titles use `[Feat]`, `[Fix]`, `[Docs]` and so on. The description answers why, how and what, and
-  says how to verify.
+  says how to verify. Include a **Demo / evidence** section; use the [self-review skill](.agents/skills/self-review/SKILL.md)
+  and the recording guide below.
+
+Apply [committed artifact hygiene](.agents/skills/self-review/SKILL.md#committed-artifact-hygiene)
+in every review, including quick prechecks. Keep maintained fixtures and replay inputs; preserve raw run
+evidence in durable, reviewer-accessible PR/CI artifacts rather than committing redundant generated output.
+
+### Large code changes
+
+PRs with **more than 3,000 changed lines of authored code** need extra contributor
+attention before requesting review. Count additions plus deletions against the
+PR's merge base in source files, tests, and build or validation scripts. Report
+this count separately from the total diff size; exclude documentation, generated
+output, lockfiles, and static fixtures from the code count, while still reviewing
+those files for relevance and correctness.
+
+- Complete a full self-review of every affected component and its integration
+  boundaries. A quick precheck alone is insufficient; keep the PR in draft until
+  the contributor self-review is complete.
+- Consider splitting independent features, refactors, and cleanup into focused
+  PRs. If the change needs to stay together, explain why in the PR description
+  and provide a component map and suggested review order.
+- Include the code-line count and a validation summary for each affected area in
+  the PR description: commands, results, and unverified behavior with reasons.
+  Cover changed interfaces between components as well as individual components.
+
+Size signals the need for closer review; it is not itself a correctness finding.
+Choose checks based on the changed behavior and risk. Crossing this threshold
+alone does not require GPU benchmarks or other expensive experiments.
+
+## Add an agent use-case recipe
+
+Use [recipes/README.md](recipes/README.md) and [the template](recipes/TEMPLATE.md) to document a complete task
+with an existing agent: prerequisites, inference backend, run command, independent result check, demo and
+troubleshooting. Keep fixtures small and reproducible; distinguish tested profiles from instructions awaiting
+a real run. Add the recipe to the index. The [add-agent-recipe skill](.agents/skills/add-agent-recipe/SKILL.md)
+guides this workflow; the builder skill also links a new agent to its recipe/evidence handoff.
+
+## Agent video demos
+
+For changes to agent behavior, prefer a short video (about 20–45 seconds) showing **input → agent actions →
+observable result**. A terminal recording works for text games, ticket routing and guardrails. A demo illustrates
+one run; it does not establish accuracy or a speedup. Docs-only and test-only changes can use `N/A` with a reason.
+If a relevant run is unavailable, explain the missing resources or integration and link the evidence you do have.
+
+### Prepare and record
+
+1. Choose a small reproducible task or fixture and define the completion check: a saved file, a submitted form,
+   a solved board, or recorded routes/verdicts. A model's `DONE` alone is not a completion check. Record the command,
+   seed/inputs, budgets, source commit and any local modifications. Prepare dependencies, model downloads and
+   warmup before recording; report them separately if discussing timing.
+2. Identify the actual inference path: model/checkpoint revision, library or serving engine, device and settings.
+   For a model already supported by [System1-Omni](https://github.com/ThinkFlowLab/system1-omni/blob/main/docs/supported-models.md),
+   try the demo through its worker/frontend when a compatible agent client is available. Check modality and hardware
+   support too. If the client, worker or required configuration is missing, state that blocker and link a follow-up.
+   Pin both repositories and retain endpoint/backend evidence; a `--model` name alone does not prove which engine
+   answered. Keep chat-model calls identifiable. A changed checkpoint, precision or compilation setting is a
+   separate configuration when comparing results.
+3. Capture the agent's application and the relevant terminal output with a recorder you already use.
+   [OBS](https://obsproject.com/kb/quick-start-guide) supports window/display capture on Windows and Linux and screen
+   capture on macOS: add the capture source, check the preview, then start recording. On macOS,
+   [Shift–Command–5](https://support.apple.com/en-us/102618) also records a selected screen portion. For a remote
+   text agent, record the terminal showing its session. Use readable text and mute audio unless it helps explain
+   the task; narration is optional.
+4. Show the input or starting state, let the agent choose and execute its actions, then show the independent
+   completion check or failure. For a fix, show the trigger and resulting behavior; include a baseline clip when
+   it helps. Keep retries, failures and human intervention in the linked trace. Label cuts and playback speed,
+   and give actual elapsed time if the clip compresses a longer run.
+5. Watch the exported clip before uploading. Use safe sample data and check the frames, audio, captions, logs and
+   metadata for secrets or private information. State asset ownership/attribution and whether the recording may
+   be reused in project updates. Share only material you have permission to disclose.
+
+For example, after the setup above and preparing the `laya` extra/checkpoint, record a three-ticket run:
+
+```bash
+uv run s1a run ticket_router --model laya --rethink off \
+  --episodes 1 --seed 0 --batch-size 3 --max-steps 3 --showcase --log
+```
+
+Show the ticket inputs and predicted/expected routes from the trial's `agent/episode.json`, as well as the
+command output. The printed `job_dir` locates the run under `evals/showcase/`; these demonstration runs stay
+outside the benchmark matrix. This command uses in-process Laya. Select the supported client on your branch
+and record worker/frontend provenance when demonstrating System1-Omni.
+
+For existing game/browser recordings, [showcase runs and replays](evals/README.md#showcase-runs-and-replays)
+describe the frame capture and `python -m evals.replay` tools. Label their output as a **recorded replay**, with
+the original run/commit and playback speed. Check a showcase script before using it: it can start both Jev and
+chat-model runs. An upstream model's demo or a scripted policy does not demonstrate the current learned-model
+agent integration.
+
+### Attach the demo to the PR
+
+Export a readable MP4 with H.264 where possible; aim below 10 MB. GitHub's
+[attachment guide](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files)
+lists supported formats and current limits. Drag the clip into the PR description's **Demo / evidence** section
+or a PR comment, wait for the upload to finish, and save the resulting link. Uploading makes the file public for
+this public repository. Use attachments for videos; keep sanitized reproduction commands and maintained
+fixtures in the repository, and generated run records in a durable reviewer-accessible archive or PR/CI
+evidence, following [artifact hygiene](.agents/skills/self-review/SKILL.md#committed-artifact-hygiene).
+Verify the uploaded video plays and that
+reviewers can open its linked trace.
+
+Use a caption such as:
+
+```text
+Task and completion check: ...
+Outcome: ... (including failures/intervention)
+Agent commit; baseline commit if compared; local changes: ...
+Model/checkpoint revision; inference engine commit/version; device/settings: ...
+Command, input/seed and budgets: ...
+Recording: actual run or replay; speed/cuts; measured elapsed time if available: ...
+Video and raw trace/results: ...
+Reuse permission and attribution: ...
+```
 
 ## Extras
 
@@ -71,7 +184,7 @@ Everything outside `openjiuwen` is an extra. An agent whose extra is missing say
 | `report` | pillow, playwright | `python -m evals.replay`, the showcase pages and GIFs; `--gif` also needs `uv run playwright install chromium` |
 | `laya` | laya (torch, transformers) | `--model laya` on every agent and on `decide` and `probe`: Laya in process, no Jev key; the checkpoint downloads into the Hugging Face cache (`HF_HOME`) on first use |
 | `cua` | cua-s1 (torch), huggingface-hub | `--model cua` on tool and browser agents and on `decide` and `probe`: Cua-S1 Nano in process; the 3 MB checkpoint downloads into the Hugging Face cache (`HF_HOME`) on first use |
-| `dev` | pytest, pytest-asyncio, ruff, ty | the test suite, `scripts/smoke.sh` and the lint and type checks |
+| `dev` | pytest, pytest-asyncio, ruff, ty, jsonschema, pyyaml, referencing | the test suite, `scripts/smoke.sh` and the lint and type checks; the last three check the served-Laya fixtures against `docs/api/` |
 | `cua-four-b` | the `cua` extra, transformers 5, peft, torchvision, pillow | optional local Cua-S1 4B; set `CUA_S1_VARIANT=4b`, and `CUA_S1_MODALITY=text` or `multimodal` |
 
 `uv sync --all-extras` installs all eight. The CLI runs from a checkout; a wheel install (`uv tool install`,
