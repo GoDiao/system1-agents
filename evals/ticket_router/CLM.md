@@ -31,6 +31,30 @@ it is not a benchmark, and `--episodes 1 --seed 0` is 30 decisions, not 90.
 not a noisy estimate, it is what a collapsed predictor scores. CLM's six are the six tickets whose label is
 `human` — it answered `human` for all thirty, at a confidence of 0.86–0.98.
 
+## The repository's own fit probe
+
+`s1a probe evals/ticket_router/probe.jsonl` is the instrument this repository ships for exactly this question: twelve
+hand-written cases, and a verdict at a stated threshold (`FIT_THRESHOLD = 0.8` in `s1a/probe.py`). `RESULTS.md`
+records that it was never run — "the English fit probe was attempted but failed with `decisions connection failed`"
+— and that English model quality therefore remains unvalidated.
+
+With CLM it runs, and this is its verdict:
+
+```
+CLM_URL=http://127.0.0.1:8091 uv run s1a probe evals/ticket_router/probe.jsonl --model clm
+right: 4/12 (33%)   median ms: 197   verdict: not a decision-model task
+```
+
+It answers `human` for all twelve and its four correct are the four whose `accept` includes `human` — the same
+collapse as the batch, on a set written to probe the hard cases (negation, resolved background, an explicit human
+request).
+
+The threshold is not the probe being impossible: the repository's own keyword baseline scores **8/12 (67%)** on the
+same twelve cases, twice CLM's four, with the same collapse on the cases that need the negation read
+(`negation`, `background keyword`, `negated background`, `background payment` all go to `human`). Neither reaches
+80%, so the verdict is a gate rather than a ranking — but it is the gate this repository chose, and CLM does not
+pass it.
+
 ## Why, and what it costs
 
 The tool loop observes `{"ticket": {…}, "progress": {…}}` and asks `ChoiceQuestion(queues, rules=RULES)`; the
@@ -60,6 +84,11 @@ Sending the same tickets, the same five queue descriptions and the same rules un
 | the ticket as one sentence, then the rules | nothing | 18/90 |
 | the ticket as one sentence | a short question | 36/90 |
 | the ticket as one sentence | nothing | 39/90 |
+
+**These four rows are exploratory.** Twelve correct of thirty against six is Fisher exact p = 0.158 — a trend,
+not a result — and every interval here belongs to n=30. At the observed rates, about **sixty** tickets would put
+the first-against-third gap at p ≈ 0.03; thirty cannot. The probe above is the part of this page that carries a
+verdict, because a threshold is not a significance test.
 
 The second row is the one that matters for where a fix belongs. Moving the rules out of `instructions` and into
 the state — which is what the `cua` backend does with `cua_context`, and the only one of these a backend could do
