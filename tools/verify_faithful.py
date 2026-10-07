@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import httpx
 
-from s1a.agents.ticket_router import QUEUES, RULES, PUBLIC_FIELDS, TicketRouterEnv
+from s1a.agents.ticket_router import QUEUES, RULES, TicketRouterEnv
 from s1a.decision_models import ChoiceQuestion, Observation
 from s1a.decision_models.clm import ClmClient, ClmModel
 
@@ -44,8 +44,14 @@ async def main() -> None:
             200,
             json={
                 "model": "clm-latest",
-                "answers": {"pick": {"type": "choice", "choice": "human", "confidence": 0.9,
-                                     "probabilities": {k: 1 / len(offered) for k in offered}}},
+                "answers": {
+                    "pick": {
+                        "type": "choice",
+                        "choice": "human",
+                        "confidence": 0.9,
+                        "probabilities": {k: 1 / len(offered) for k in offered},
+                    }
+                },
                 "usage": {"input_tokens": 1},
             },
         )
