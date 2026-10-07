@@ -134,12 +134,15 @@ class CountingDecisionModel(DecisionModel):
     model.
     """
 
+    bills_input_tokens = False
+
     def __init__(self, inner: DecisionModel) -> None:
         self._inner = inner
         self.name = inner.name
         self.question_types = inner.question_types
         self.deterministic = inner.deterministic
         self.supports_images = inner.supports_images
+        self.bills_input_tokens = inner.bills_input_tokens
         self.calls: list[dict[str, Any]] = []
         self.decide_many_calls = 0
 

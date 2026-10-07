@@ -48,6 +48,7 @@ class _FakeDecisionModel(DecisionModel):
     """A stand-in backend: it can fail, answer unusably for a while, then answer correctly."""
 
     name = "fake"
+    bills_input_tokens = False
     deterministic = False
 
     def __init__(self, *, fail_times: int = 0, invalid_times: int = 0, model: str = "fake-v1") -> None:
@@ -101,17 +102,20 @@ def test_proxy_usage_known_and_tokens_include_the_validation_retry() -> None:
     assert sum(call["input_tokens"] for call in proxy.calls) == 22, "the retry's own tokens are kept too"
 
 
-def test_proxy_preserves_the_inner_interface() -> None:
+@pytest.mark.parametrize("bills_input_tokens", [False, True])
+def test_proxy_preserves_the_inner_interface(bills_input_tokens: bool) -> None:
     inner = _FakeDecisionModel(model="fake-v9")
     inner.deterministic = True
     inner.question_types = frozenset({"choice"})
     inner.supports_images = True
+    inner.bills_input_tokens = bills_input_tokens
     proxy = CountingDecisionModel(inner)
 
     assert (proxy.name, proxy.model) == ("fake", "fake-v9")
     assert proxy.deterministic is True
     assert proxy.question_types == frozenset({"choice"})
     assert proxy.supports_images is True
+    assert proxy.bills_input_tokens is bills_input_tokens
 
 
 def test_planned_trials_alternate_the_arm_order_per_repeat() -> None:
@@ -308,6 +312,7 @@ class _NullDecision(DecisionModel):
     """A stand-in backend that is never asked to decide: the trial function is replaced in these tests."""
 
     name = "fake"
+    bills_input_tokens = False
 
     @property
     def model(self) -> str:

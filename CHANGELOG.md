@@ -14,6 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 - Windows development checks: the smoke script accepts CRLF output, shell scripts and Git hooks retain LF
   line endings, and tests check socket closure and invalid output directories without Unix-specific behavior.
   The core CI matrix now covers Windows with Python 3.11.
+- Rail, tool, and browser evaluations charge Jev-rate input tokens only when the decision backend declares
+  them billable. Local model token usage remains recorded without Jev API charges.
 
 ### Added
 
@@ -34,6 +36,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
   example and independent fixture verification.
 - Contributor guidance for recording and attaching agent video demos, identifying the inference engine and
   checking supported System1-Omni paths, linked from the builder/self-review skills and PR template.
+- `--model laya-served`: Laya served over HTTP by system1-omni's worker (or plain laya-serve), on every front that
+  takes `laya`, in `decide` and in MCP `decide`. Configured by `LAYA_SERVED_URL` and optional `LAYA_SERVED_*`
+  variables; no cloud key. Run records name the served checkpoint, revision and device. Design, API spec and the
+  run steps: `docs/served-laya.md`, `docs/api/`.
+- Tool-front ticks keep the answering model as `model`, and a served model's `served_by`, `url`, `request_id` and
+  `server_timing`.
 - The MCP `decide` tool accepts `model="jev"|"laya"|"cua"`, defaulting to `jev`. Local backends use their
   optional extras and need no Jev API key.
 - `docs/benchmarks.md`: the Google Flights driver comparison rerun on 2026-09-23 from Poland, every arm three times on

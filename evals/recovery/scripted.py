@@ -53,6 +53,7 @@ class ScriptedRecoveryModel(DecisionModel):
     """The faulted form-filler: type until a plan arrives, then act on the offered unlock control, then submit."""
 
     name = "scripted"
+    bills_input_tokens = False
     supports_images = False
     deterministic = True
 

@@ -242,4 +242,12 @@ Jev paged the date picker back and forth and ended BLOCKED after 18 requests (th
 8. One slot model over one decision-model interface: `ToolDecisionModel` holds a decision model, and its `name` is
    the tick's `source` and the episode's `policy`.
 
-The [small real-model recovery report](recovery/RESULTS.md) records both the original negative result and the separate exploratory server-validation follow-up, with per-trial data and limitations.
+Recovery run evidence is kept outside the maintained source tree. The
+[served-Laya recordings and follow-up](https://github.com/ThinkFlowLab/system1-agents/pull/31#issuecomment-6014842354)
+include both success and failure; the
+[reproduction archive](https://github.com/prettygirlisnotme/system1-agents/releases/download/pr31-served-recovery-evidence-20261006/served-recovery-evidence-preview.zip)
+contains all eight trial records, traces, pinned runtime reconstruction and recording helpers.
+The earlier in-process experiment remains available as a
+[frozen report](https://github.com/prettygirlisnotme/system1-agents/blob/bd54c1461a782c138e28801441ece47321b274bd/evals/recovery/RESULTS.md)
+and [24 trial records](https://github.com/prettygirlisnotme/system1-agents/blob/bd54c1461a782c138e28801441ece47321b274bd/evals/recovery/laya-results.json).
+These synthetic runs illustrate workflows and failure modes; they do not establish a general task-success improvement.

@@ -16,11 +16,11 @@ hook of a running agent. The injection guard rail fails closed: a decision error
 | `blackjack` | tool | payoff per hand (RLCard) | `s1a run blackjack --model jev --rethink off --episodes 100` |
 | `injection_guard` | rail | precision and recall on a labelled injection set | `s1a run injection_guard` |
 
-Every tool agent takes `--model jev|laya|cua|llm|random|rule`, `--rethink on|off`, `--episodes N`, `--seed S`,
+Every tool agent takes `--model jev|laya|laya-served|cua|llm|random|rule`, `--rethink on|off`, `--episodes N`, `--seed S`,
 `--max-steps` and `--timeout`, and writes a Harbor-shaped job folder under `evals/results/<agent>/`. A browser agent
-takes `--model jev|laya|cua|llm`, `--goal` and the same `--rethink` flag. The desktop agent adds the bounded-recovery
+takes `--model jev|laya|laya-served|cua|llm`, `--goal` and the same `--rethink` flag. The desktop agent adds the bounded-recovery
 `--rethink-attempts` and `--rethink-timeout` and stalls after 3 actions; the browser front takes the same three names,
-and `docs/browser-front.md` decision 19 describes its branch. A rail takes `--model jev|laya`, the two models that
+and `docs/browser-front.md` decision 19 describes its branch. A rail takes `--model jev|laya|laya-served`, the three models that
 answer `noul`.
 `uv run python -m evals.table evals/results` aggregates every job folder per eval and model into one table.
 

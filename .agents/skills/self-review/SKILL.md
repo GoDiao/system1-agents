@@ -10,6 +10,15 @@ instructions. Record the actual target branch and base/head commits, and review
 the full diff from their merge base plus relevant uncommitted changes. Distinguish
 what is in the PR from local-only work; disclose if the base could not be refreshed.
 
+Apply the [large-code-change requirements](../../../CONTRIBUTING.md#large-code-changes):
+report authored-code and total diff counts separately using the guide's counting
+convention. Above 3,000 changed code lines, verify the contributor's full
+self-review, split rationale, component map/review order, and validation across
+affected components and interfaces before recommending readiness. A quick
+precheck is insufficient; keep the PR draft until the contributor self-review is
+complete. Report missing preparation as a readiness gap; size alone is not a
+correctness finding or a reason to require expensive model/GPU runs.
+
 Check correctness, focused scope, decision-model and front contracts, fallback
 behavior, cancellation/timeouts, and resource cleanup as relevant. Verify tests
 cover the changed behavior, including failure paths and a regression case for a
@@ -22,6 +31,28 @@ agent/backend, result checks can detect failure, and each profile's validation s
 This skill prepares a local contributor report. It does not itself authorize
 edits, commits, pushes, external posts, paid model calls, downloads, or changes to
 review status. Use only separately authorized execution resources and budgets.
+
+## Committed artifact hygiene
+
+Apply this check in every review, including quick prechecks. Inspect added and
+changed artifacts in the complete diff, including JSON/JSONL, CSV, logs, reports,
+source/binary hash inventories, and generated media. Classify them by purpose and
+actual consumer, rather than rejecting a file extension.
+
+- Keep necessary configuration, request examples, maintained benchmark inputs,
+  and small deterministic fixtures or reference oracles in the repository's
+  intended locations. Identify the test, tool, or documented workflow that needs
+  each retained artifact, such as labelled agent datasets or replay inputs.
+- Flag one-off run summaries, response dumps, cache statistics, profiler output,
+  agent process notes, and duplicate historical results that have no maintained
+  source-tree role. A link from PR prose or documentation alone does not justify
+  committing generated run output. Report concrete paths and consumers.
+- Preserve raw measurements, failures, and provenance in a durable artifact
+  archive or PR/CI evidence, and link the exact revision or run from the summary.
+  Do not discard evidence to reduce the diff or hide it in a committed archive.
+- When removing redundant output, check its callers, links, and reproduction
+  commands. Keep replay inputs and expected responses intact; verify their
+  hashes and rerun the affected replay or documentation checks.
 
 ## Task evidence
 
