@@ -39,6 +39,18 @@ branch shows. CLM's state head embeds the two together, and `RULES` is 696 chara
 identical for every ticket — so it dominates that text and the thirty tickets stop being distinguishable. `RULES`
 also ends with "If no unique queue fits, choose human", which is the answer the collapse lands on.
 
+That the rules crowd the tickets out is measured, not assumed. Embedding the thirty tickets' state texts and taking
+every pairwise cosine (435 pairs, one RTX 4090):
+
+| the text the encoder sees | mean | lowest pair | highest pair |
+|---|---:|---:|---:|
+| the ticket alone | +0.9327 | +0.8135 | +0.9938 |
+| the ticket, then the rules | +0.9893 | +0.9636 | +0.9974 |
+
+The rules raise the *floor* from +0.814 to +0.964: the two least alike tickets in the set end up more similar than
+almost any pair was before. Whatever the heads do on top of that, they are being asked to separate thirty texts
+that have become nearly the same text.
+
 Sending the same tickets, the same five queue descriptions and the same rules under different renderings gives
 (`evals/ticket_router/compare_framings.py`, 3 seeds, 90 decisions per row):
 
@@ -79,9 +91,25 @@ The run's job folder holds the per-ticket routes, the probabilities behind each 
 
 ## Limits
 
-- 30 independent tickets. Three seeds shuffle the same thirty, so 90 decisions is not 90 samples, and the
-  per-seed counts are identical rather than merely close. The 95% interval on 18/90 is roughly 12–30% — the random
-  baseline — and on 36/90 it is 30–51%, which still does not reach the keyword baseline with confidence.
+- **30 independent tickets, and no more.** Three seeds shuffle the same thirty, so 90 decisions is not 90 samples
+  and the per-seed counts are identical rather than merely close. Every interval below is therefore computed on
+  n=30; reading the seeds as 90 samples would halve it and claim precision that is not there.
+
+  | | rate | 95% interval (n=30) |
+  |---|---:|---|
+  | CLM, this loop's framing | 20.0% | 9.5–37.3% |
+  | uniform random | 20.0% | 9.5–37.3% |
+  | CLM, a short question | 40.0% | 24.6–57.7% |
+  | keyword rule baseline | 56.7% | 39.2–72.6% |
+  | Laya | 70.0% | 52.1–83.3% |
+
+  CLM's interval and random's are the same interval, so the defensible reading is "not distinguishable from
+  random", not "exactly random". The short-question row's upper bound reaches the keyword baseline, so that row is
+  not separated from it with confidence either.
+- **Repeating the run does not narrow any of this.** The engine is deterministic — the same seed re-run gives
+  exactly 6 again, and the same request five times gives byte-identical probabilities — so there is no run-to-run
+  noise to average out. More seeds shuffle the same thirty tickets. The only thing that narrows these intervals is
+  a larger labelled set: 300 tickets at these rates would give 16–25% and 35–46%.
 - The encoder is Transformers with last-token pooling, not a vLLM pooling server. The heads were trained against
   the vLLM path; a deployment's encoder is a different implementation and this page does not measure it.
 - The framing table is one run per row and was measured after the first result, so it is exploratory.
