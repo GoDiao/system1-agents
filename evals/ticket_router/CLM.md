@@ -114,10 +114,14 @@ curl -s http://127.0.0.1:8080/health      # omni-jev, with clm-serve behind it
   {"ok": true, "embedder": true, "models": ["clm-latest", "clm-raw"]}   vector cache on cuda
 
 CLM_URL=http://127.0.0.1:8080 s1a run ticket_router --model clm --rethink off \
-  --episodes 1 --seed 0 --batch-size 3 --max-steps 3 --showcase --log
-  1 human conf=0.96   2 human conf=0.96   3 human conf=0.91     correct 0/3
+  --episodes 1 --seed 0 --showcase --log
+  30 decisions, every one `human`, median 123 ms   mean_score 6.0
   served_by {"url": "http://127.0.0.1:8080", "models": ["clm-latest", "clm-raw"], "source": "health"}
+  answered {'human': 30}    correct 6/30 routed as labelled
 ```
+
+The clip runs **all thirty**, not a slice: at 123 ms a decision the whole set costs four seconds, which fits the
+twenty-to-forty-five seconds the guidance asks for, and a slice of three would show nothing a reader can use.
 
 The topology, which the caption on the pull request states in full: `s1a` -> `omni-jev` (system1-omni's frontend,
 `:8080`) -> `clm-serve` (upstream CLM's own server, `:8091`) -> Qwen3-8B on one RTX 4090. **`omni-clm`, the engine

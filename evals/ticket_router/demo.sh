@@ -20,7 +20,7 @@ print('   vector cache on', d['cache']['device'])
 " 2>&1 | grep -v "INFO |"
 echo
 
-echo "\$ the three tickets this run routes (seed 0, the first three of thirty)"
+echo "\$ three of the thirty labelled tickets this run routes (seed 0 routes all of them)"
 $PY -c "
 import random, sys
 sys.path.insert(0, '.')
@@ -34,9 +34,9 @@ for r in rows[:3]:
 echo
 
 echo "\$ CLM_URL=http://127.0.0.1:8080 s1a run ticket_router --model clm --rethink off \\"
-echo "      --episodes 1 --seed 0 --batch-size 3 --max-steps 3 --showcase --log"
+echo "      --episodes 1 --seed 0 --showcase --log"
 CLM_URL=http://127.0.0.1:8080 uv run --no-sync s1a run ticket_router --model clm --rethink off \
-  --episodes 1 --seed 0 --batch-size 3 --max-steps 3 --showcase --log 2>&1 \
+  --episodes 1 --seed 0 --showcase --log 2>&1 \
   | eval $QUIET
 echo
 
@@ -48,7 +48,9 @@ d = json.load(open(glob.glob('$JOB/*/agent/episode.json')[0]))
 t = d['decisions'][0]
 print('   source', t['source'], '| model', t['model'], '| ms', t['ms'])
 print('   served_by', json.dumps(t['served_by']))
+from collections import Counter
 tr = d['extra']['ticket_router']
-print('   routes  ', ', '.join(f\"{r['expected']}->{r['predicted']}\" for r in tr['routes']))
-print('   correct ', str(tr['correct']) + '/' + str(tr['total']))
+gave = Counter(r['predicted'] for r in tr['routes'])
+print('   answered', dict(gave))
+print('   correct ', str(tr['correct']) + '/' + str(tr['total']), 'routed as labelled')
 " 2>&1 | grep -v "INFO |"
