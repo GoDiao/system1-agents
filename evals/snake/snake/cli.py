@@ -16,6 +16,7 @@ from rich.console import Console
 from rich.live import Live
 
 from .game import SnakeGame
+from .warmup import warm_up
 from .policy import LayaPolicy
 from .ui import BG, compose, layout_size
 
@@ -89,12 +90,7 @@ def play(argv=None):
         parser.error("Interactive display needs a TTY. Use --headless for a non-interactive run.")
     print(f"Connecting to backend {args.backend} ...", file=sys.stderr)
     policy = LayaPolicy(args.backend, model=args.model, guarded=not args.unassisted, prompt=args.prompt)
-    warm = SnakeGame(args.width, args.height, args.seed + 10000, args.initial_length)
-    for _ in range(6):
-        decision = policy.decide(warm)
-        warm.step(decision.executed)
-        if not warm.alive:
-            break
+    warm_up(policy, SnakeGame(args.width, args.height, args.seed + 10000, args.initial_length))
     record = None
     if args.record:
         args.record.parent.mkdir(parents=True, exist_ok=True)

@@ -27,6 +27,15 @@ def load_multi(path):
     return metadata, frames, summary
 
 
+def backend_caption(metadata):
+    """The caption comes from the recorded backend metadata, never from a
+    constant; an unknown engine stays unknown."""
+    engine = str((metadata.get("model") or {}).get("engine_label", "unknown")).strip()
+    if not engine or engine.lower() == "unknown":
+        return "SYSTEM1-OMNI  ×  UNKNOWN ENGINE"
+    return f"SYSTEM1-OMNI  ×  {engine.upper()}"
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("recording", type=Path)
@@ -41,6 +50,12 @@ def main(argv=None):
 
     metadata, frames, summary = load_multi(args.recording)
     seeds = sorted({f["seed"] for f in frames})
+    settings = metadata.get("settings") or {}
+    pending_shape = {
+        "width": int(settings.get("width", 24)),
+        "height": int(settings.get("height", 16)),
+    }
+    caption = backend_caption(metadata)
     times = [f["at"] for f in frames]
     start, end = max(times[0], args.start), min(max(times[0], args.start) + args.seconds, times[-1])
 
@@ -58,20 +73,27 @@ def main(argv=None):
         while recent and recent[0]["at"] < t - 2.0:
             recent.popleft()
 
+    def games_at():
+        """Every game keeps its slot from the first frame on; games that have
+        not reported yet render as pending, so the canvas size never changes."""
+        return [state.get(s) or {"seed": s, "pending": True, **pending_shape} for s in seeds]
+
     def stats_at(t):
-        alive = sum(1 for s in seeds if state.get(s, {}).get("game", {}).get("alive", True))
+        recorded = [state[s] for s in seeds if s in state]
+        alive = sum(1 for f in recorded if f["game"]["alive"])
         dps = len([f for f in recent if f["at"] > t - 1.0]) if recent else 0
         ms = [f["decision"].get("inference_ms", 0) for f in recent if f.get("decision")]
         return {
             "alive": alive,
+            "waiting": len(seeds) - len(recorded),
             "dps": dps,
             "mean_ms": sum(ms) / len(ms) if ms else 0,
-            "score": sum(s["game"]["score"] for s in state.values()),
+            "score": sum(f["game"]["score"] for f in recorded),
             "clock": f"{int(t) // 60:02d}:{int(t) % 60:02d}",
         }
 
     advance(start)
-    canvas = compose_multi([state[s] for s in seeds if s in state], stats_at(start), args.cols)
+    canvas = compose_multi(games_at(), stats_at(start), args.cols, caption)
     raster = TerminalRaster(canvas.width, canvas.height, width=1920, height=1080)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     if args.output.suffix == ".png":
@@ -87,9 +109,7 @@ def main(argv=None):
         for index in range(count):
             t = start + index / args.fps
             advance(t)
-            pixels = raster.render(
-                compose_multi([state[s] for s in seeds if s in state], stats_at(t), args.cols)
-            ).tobytes()
+            pixels = raster.render(compose_multi(games_at(), stats_at(t), args.cols, caption)).tobytes()
             process.stdin.write(pixels)
         process.stdin.close()
         if process.wait() != 0:

@@ -16,6 +16,7 @@ from pathlib import Path
 
 from .game import SnakeGame
 from .policy import LayaPolicy
+from .warmup import warm_up
 
 
 class GameRunner:
@@ -67,16 +68,11 @@ def run_multi(argv=None):
     if args.games < 1 or args.cols < 1:
         parser.error("--games and --cols must be positive")
 
-    policy = LayaPolicy(args.backend, model=args.model)
+    policy = LayaPolicy(args.backend, model=args.model, prompt=args.prompt)
     runners = [
         GameRunner(policy, args.seed + i, args.width, args.height, args.initial_length) for i in range(args.games)
     ]
-    warm = SnakeGame(args.width, args.height, args.seed + 90000, args.initial_length)
-    for _ in range(4):
-        d = policy.decide(warm)
-        warm.step(d.executed)
-        if not warm.alive:
-            break
+    warm_up(policy, SnakeGame(args.width, args.height, args.seed + 90000, args.initial_length), steps=4)
 
     args.record.parent.mkdir(parents=True, exist_ok=True)
     record = args.record.open("x")

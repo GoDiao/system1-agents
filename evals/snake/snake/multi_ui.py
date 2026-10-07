@@ -9,6 +9,17 @@ CELL_H = 22
 TOP_BAR = 5
 
 
+def _draw_pending(c, ox, oy, g):
+    bw, bh = g["width"], g["height"]
+    c.put(oy, ox, f"#{g['seed']}", MUTED)
+    c.put(oy, ox + 12, "pending", DIM)
+    c.put(oy + 1, ox, "┌" + "─" * bw + "┐", DIM)
+    c.put(oy + 2 + bh, ox, "└" + "─" * bw + "┘", DIM)
+    for y in range(bh):
+        c.put(oy + 2 + y, ox, "│", DIM)
+        c.put(oy + 2 + y, ox + bw + 1, "│", DIM)
+
+
 def _draw_cell(c, ox, oy, g):
     game = g["game"]
     decision = g.get("decision") or {}
@@ -67,23 +78,28 @@ def _draw_cell(c, ox, oy, g):
     c.put(oy + 15, rx + 5, "█" * round(fr * 6), CYAN)
 
 
-def compose_multi(games, stats, cols=4):
+def compose_multi(games, stats, cols=4, caption="SYSTEM1-OMNI"):
+    """All slots are always drawn, so the canvas keeps one size for the whole
+    recording; games without a frame yet render as pending placeholders."""
     n = len(games)
     rows = math.ceil(n / cols)
     width = 6 + cols * CELL_W
     height = TOP_BAR + rows * CELL_H + 2
     c = Canvas(width, height)
-    c.put(1, 3, "SYSTEM1-OMNI  ×  LAYA NATIVE  ×  H800", MUTED)
-    c.put(
-        2,
-        3,
+    c.put(1, 3, caption, MUTED)
+    line = (
         f"{stats['alive']}/{n} alive · {stats['dps']:.0f} decisions/s · "
-        f"{stats['mean_ms']:.1f} ms mean · score {stats['score']} · {stats['clock']}",
-        GREEN,
+        f"{stats['mean_ms']:.1f} ms mean · score {stats['score']} · {stats['clock']}"
     )
+    if stats.get("waiting"):
+        line += f" · {stats['waiting']} waiting"
+    c.put(2, 3, line, GREEN)
     c.put(3, 3, "─" * (width - 6), DIM)
     for i, g in enumerate(games):
         ox = 3 + (i % cols) * CELL_W
         oy = TOP_BAR + (i // cols) * CELL_H
-        _draw_cell(c, ox, oy, g)
+        if g.get("pending"):
+            _draw_pending(c, ox, oy, g)
+        else:
+            _draw_cell(c, ox, oy, g)
     return c
