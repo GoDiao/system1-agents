@@ -189,6 +189,9 @@ class ClmModel(DecisionModel):
 
     name = "clm"
     deterministic = True  # the engine's decision is stable to six decimals; a re-ask only pays the encoder again
+    # CLM's usage.input_tokens counts the encoder cache misses a decision paid for, not the tokens the request
+    # carried, so it is not a Jev-priced quantity and must not be billed as one.
+    bills_input_tokens = False
 
     def __init__(self, client: ClmClient, *, model: str = DEFAULT_CLM_MODEL) -> None:
         self._client = client
