@@ -97,10 +97,54 @@ guides this workflow; the builder skill also links a new agent to its recipe/evi
 
 ## Agent video demos
 
-For changes to agent behavior, prefer a short video (about 20–45 seconds) showing **input → agent actions →
-observable result**. A terminal recording works for text games, ticket routing and guardrails. A demo illustrates
-one run; it does not establish accuracy or a speedup. Docs-only and test-only changes can use `N/A` with a reason.
-If a relevant run is unavailable, explain the missing resources or integration and link the evidence you do have.
+Important PRs must provide a video demonstrating **application/task → System1-Agents decision-model agent →
+System1-Omni inference → observable application result**. This applies to new agents/use cases, material
+workflow changes, decision-model/serving integrations, action/rail/recovery changes, and claimed task-quality
+or performance improvements. Include dependency changes when they materially affect inference or execution.
+
+Show all three parts of the same run:
+
+| Part | What the video and linked trace establish |
+|---|---|
+| Application/task | Starting input/state, actual actions and an independent completion check or failure |
+| System1-Agents | Agent invocation, real decision-model choices and their execution; identify chat-model work separately |
+| System1-Omni | Ready worker/frontend, answering model/checkpoint and backend identity, and requests from this agent run |
+
+The application can be a browser, desktop app, game, simulator or a text task such as ticket routing. A terminal
+recording is valid when it shows the task, agent decisions, inference provenance and result. Aim for about
+20–45 seconds; link the full trace and label cuts or replay speed. A demo illustrates one run, not a success
+rate or speedup. Logs, screenshots, scripted controls and in-process/cloud-only runs support the evidence but
+do not replace the required application + agents + Omni video.
+
+Use [PR #35's ticket-router video and caption](https://github.com/ThinkFlowLab/system1-agents/pull/35#issuecomment-6017425034)
+as the worked example: ticket inputs, `--model laya-served` through `omni-jev`, chosen routes and recorded
+checkpoint/device identity. It uses Laya in the agent's decision-model slot; follow the same pattern for
+other decision models with a verified System1-Omni serving path.
+
+Minor documentation, formatting and test-only changes that do not alter behavior or introduce quality/performance
+claims may use `N/A` with a concrete reason. A nonvisual workflow alone is not an exemption. If a required video
+is blocked by model/modality/hardware support, a missing client, resources or disclosure rights, name the blocker,
+link the available evidence and a follow-up, and keep the important PR draft until the demo is supplied or a
+maintainer explicitly accepts the documented exception. Missing evidence must remain a review gap.
+
+### Application candidates
+
+Choose a scenario relevant to the change from the [README's use cases](README.md#what-ships) and
+[agent guide](docs/agents.md). PR #35 is the recording/provenance example; the application need not be ticket routing.
+
+| Application | Existing agents | What to show and check |
+|---|---|---|
+| Computer use | `desktop` | Real app/fixture window, offered controls, model-selected clicks and resulting display/state |
+| Browser use | `flights`, `allrecipes` | Task goal, page controls, agent navigation/form actions and final results checked against the goal |
+| Robotics / embodied task | `alfworld` | Task and observed environment, selected actions and environment-verified completion; identify text or visual replay |
+| Games | `blackjack`, `game2048`, `millionaire` | Initial hand/board/question, actual moves and final game state/score |
+| Support routing | `ticket_router` | Ticket input, model-selected queue, executed route and evaluator verdict |
+| Guardrails | `injection_guard` | Tool-output input, guard decision and actual quarantine/pass behavior when attached to an agent |
+
+Use the agent's supported platform/environment and a supported client/worker combination. A guard's labelled-set
+evaluation can illustrate classifications, but demonstrating runtime quarantine needs the guard attached to an
+agent. Keep fixture runs, simulated environments and recorded replays labelled. Every candidate still needs the
+same System1-Agents invocation and System1-Omni inference provenance from that run.
 
 ### Prepare and record
 
@@ -110,8 +154,8 @@ If a relevant run is unavailable, explain the missing resources or integration a
    warmup before recording; report them separately if discussing timing.
 2. Identify the actual inference path: model/checkpoint revision, library or serving engine, device and settings.
    For a model already supported by [System1-Omni](https://github.com/ThinkFlowLab/system1-omni/blob/main/docs/supported-models.md),
-   try the demo through its worker/frontend when a compatible agent client is available. Check modality and hardware
-   support too. If the client, worker or required configuration is missing, state that blocker and link a follow-up.
+   use its worker/frontend for the required demo. Check the client, modality and hardware support too. If the client,
+   worker or required configuration is missing, state that blocker and link a follow-up under the policy above.
    Pin both repositories and retain endpoint/backend evidence; a `--model` name alone does not prove which engine
    answered. Keep chat-model calls identifiable. A changed checkpoint, precision or compilation setting is a
    separate configuration when comparing results.
@@ -129,17 +173,19 @@ If a relevant run is unavailable, explain the missing resources or integration a
    metadata for secrets or private information. State asset ownership/attribution and whether the recording may
    be reused in project updates. Share only material you have permission to disclose.
 
-For example, after the setup above and preparing the `laya` extra/checkpoint, record a three-ticket run:
+For example, follow [the served-Laya setup](docs/served-laya.md#8-run-it) to prepare the System1-Omni worker and
+Rust frontend. Once they are ready at ports 8000/8080, record the ready endpoint and a three-ticket agent run:
 
 ```bash
-uv run s1a run ticket_router --model laya --rethink off \
+curl --fail http://127.0.0.1:8080/health
+LAYA_SERVED_URL=http://127.0.0.1:8080 uv run s1a run ticket_router --model laya-served --rethink off \
   --episodes 1 --seed 0 --batch-size 3 --max-steps 3 --showcase --log
 ```
 
 Show the ticket inputs and predicted/expected routes from the trial's `agent/episode.json`, as well as the
 command output. The printed `job_dir` locates the run under `evals/showcase/`; these demonstration runs stay
-outside the benchmark matrix. This command uses in-process Laya. Select the supported client on your branch
-and record worker/frontend provenance when demonstrating System1-Omni.
+outside the benchmark matrix. Show the answering identity and frontend URL from the same run's ticks
+(`model`, `served_by`, `url` and `request_id`), alongside the worker/frontend revision and configuration.
 
 For existing game/browser recordings, [showcase runs and replays](evals/README.md#showcase-runs-and-replays)
 describe the frame capture and `python -m evals.replay` tools. Label their output as a **recorded replay**, with
@@ -164,9 +210,10 @@ Use a caption such as:
 ```text
 Task and completion check: ...
 Outcome: ... (including failures/intervention)
-Agent commit; baseline commit if compared; local changes: ...
-Model/checkpoint revision; inference engine commit/version; device/settings: ...
+Application/fixture and System1-Agents commits; baseline if compared; local changes: ...
+System1-Omni commit; worker/frontend URL; answering model/checkpoint revision; device/settings: ...
 Command, input/seed and budgets: ...
+Inference provenance from this run (request IDs/ticks/worker trace): ...
 Recording: actual run or replay; speed/cuts; measured elapsed time if available: ...
 Video and raw trace/results: ...
 Reuse permission and attribution: ...

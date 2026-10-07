@@ -4,6 +4,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 ## Unreleased
 
+### Added
+
+- Snake recipe and game client: `evals/snake` vendors the laya-mlx snake CLI
+  (Apache-2.0) with single-game paced recording and a 16-game multigrid mode
+  against any `/v1/systemone` backend; `recipes/snake` documents setup,
+  verification, and recorded evidence (0 deaths; playback-speed-1 GIFs).
+
 ### Fixed
 
 - Custom recovery tasks now reach each trial's fixture with their requested routes, page behavior and submission
@@ -11,6 +18,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 - Bounded recovery treats an empty, whitespace-only or otherwise blank planner answer (browser and desktop) as a
   planner failure: the run stops with the existing reason and next action, the one attempt and its active seconds
   stay charged and the fresh observation is kept, instead of recording a `planned` event with an empty plan.
+- Fit-probe cases with no options, no accepted answer, or an accepted key outside the offered options now fail
+  input validation instead of skewing the fit verdict.
 - Windows development checks: the smoke script accepts CRLF output, shell scripts and Git hooks retain LF
   line endings, and tests check socket closure and invalid output directories without Unix-specific behavior.
   The core CI matrix now covers Windows with Python 3.11.
@@ -42,6 +51,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
   run steps: `docs/served-laya.md`, `docs/api/`.
 - Tool-front ticks keep the answering model as `model`, and a served model's `served_by`, `url`, `request_id` and
   `server_timing`.
+- `S1A_DECISION_TIMEOUT_S`: the deadline of one decision on the `jev` backend, 5 s when unset. A local System One
+  server behind `TYPESAFE_API_URL` can be slower than Jev: on Google Flights, OneJev-27B on an A100 takes about 3.7 s
+  a decision and more on the calendar page, so the 5 s deadline stopped every run at the eighth step; with 30 s it
+  completed the task. `docs/configuration.md`.
 - The MCP `decide` tool accepts `model="jev"|"laya"|"cua"`, defaulting to `jev`. Local backends use their
   optional extras and need no Jev API key.
 - `docs/benchmarks.md`: the Google Flights driver comparison rerun on 2026-09-23 from Poland, every arm three times on
@@ -50,6 +63,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 ### Changed
 
+- Important agent/inference PRs require an application + System1-Agents + System1-Omni video, following
+  PR #35's worked example. Contributor skills, recipes and the PR template retain missing demos as review gaps.
 - `--model laya` loads in about 3 s instead of about 35 s: the encoder is built with transformers' weight init
   off, since the checkpoint replaces every weight. Weights and answers are unchanged.
 - `--model` picks the model on every agent, on `decide` and on `probe`: `jev`, `laya`, `cua`, `llm`, `random` or
