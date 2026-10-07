@@ -46,7 +46,9 @@ class TerminalRaster:
         font_path = next((p for p in choices if p.is_file()), None)
         if font_path is None:
             raise FileNotFoundError("A monospace font is required; pass --font /path/to/font.ttf")
-        size = min(int((width - 120) / (columns * 0.61)), int((height - 110) / rows))
+        size = min(int((width - 120) / (columns * 0.61)), int((height - 110) / rows) - 1)
+        if size < 1:
+            raise ValueError("Canvas is too large for the output image; use fewer games or a larger image")
         self.font = ImageFont.truetype(str(font_path), size)
         self.cw = max(1, round(self.font.getlength("M")))
         self.ch = size + 1

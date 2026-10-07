@@ -13,13 +13,16 @@ Modifications against the upstream laya_mlx/snake module:
 - snake/ui.py: title/engine/network rows read backend-driven stats instead of
   the upstream hard-coded MLX strings.
 - snake/replay.py: ffmpeg command assembly factored into ffmpeg_mp4_cmd for
-  reuse by multi_replay; rendering behavior unchanged. Raster fonts resolve
+  reuse by multi_replay; raster sizing includes line spacing to keep tall
+  grids inside the output image. Raster fonts resolve
   per-platform (macOS Menlo, Linux DejaVu Sans Mono, Windows Consola), or
   via --font.
 - snake/warmup.py (new): warmup shared by cli.py and multi.py; stops before
   deciding again on a won or dead game (the upstream inline warmup in cli.py
   only checked dead).
 - snake/multi.py, snake/multi_ui.py, snake/multi_replay.py (new): N-game
-  orchestration, grid composition and replay rendering.
+  orchestration, grid composition and replay rendering. Stop sibling games
+  on failure or interruption, sort concurrent frames by timestamp and size
+  grid slots from the board dimensions.
 - Formatting: all Python files were reformatted to the repository ruff style
   (ruff format); snake/{game,__init__,__main__}.py carry no functional changes.

@@ -129,18 +129,13 @@ def run_multi(argv=None):
     period = 1 / args.fps
     try:
         with ThreadPoolExecutor(max_workers=args.games) as pool:
-            futures = [pool.submit(loop, r, period) for r in runners]
-            for future in as_completed(futures):
-                try:
+            try:
+                futures = [pool.submit(loop, r, period) for r in runners]
+                for future in as_completed(futures):
                     future.result()
-                except BaseException:
-                    # Signal before the pool's shutdown(wait=True) so sibling
-                    # games stop at their next step instead of running their
-                    # full budget after one game has already failed.
-                    stop.set()
-                    for other in futures:
-                        other.cancel()
-                    raise
+            finally:
+                # Stop sibling games before the executor waits for them, including on Ctrl-C.
+                stop.set()
         elapsed = time.perf_counter() - started
         all_inference = [ms for r in runners for ms in r.inference]
         summary = {
