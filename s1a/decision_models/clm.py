@@ -104,10 +104,15 @@ class ClmClient:
         self._client = httpx.AsyncClient(timeout=timeout_s, headers=headers, transport=transport)
 
     async def warm(self) -> Json:
-        """``GET /v1/models`` once: fail early when nothing is listening, and name what is served."""
+        """``GET /health`` once: fail early when nothing is listening, and name what is served.
+
+        ``/health`` and not ``/v1/models``: clm-serve serves both, but system1-omni's ``omni-jev`` frontend —
+        the path this backend is meant to be used through — routes only ``/v1/systemone`` and ``/health``.
+        Reading the one the frontend does not expose made every decision fail with its 404.
+        """
         try:
             response = await asyncio.wait_for(
-                self._client.get(f"{self.url}/v1/models", timeout=CLM_HEALTH_TIMEOUT_S), CLM_HEALTH_TIMEOUT_S
+                self._client.get(f"{self.url}/health", timeout=CLM_HEALTH_TIMEOUT_S), CLM_HEALTH_TIMEOUT_S
             )
         except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
             raise build_error(
@@ -215,7 +220,7 @@ class ClmModel(DecisionModel):
         try:
             await self.warm()
         except BaseError as exc:
-            logger.warning("[clm] could not read /v1/models at %s: %s", self._client.url, exc)
+            logger.warning("[clm] could not read /health at %s: %s", self._client.url, exc)
 
     async def _decide(self, observation: Observation, questions: dict[str, Question]) -> Reply:
         body = {
@@ -237,7 +242,7 @@ class ClmModel(DecisionModel):
                 **payload,
                 "url": self._client.url,
                 "request_id": request_id,
-                "served_by": {"url": self._client.url, "models": self._served.get("models"), "source": "warm"},
+                "served_by": {"url": self._client.url, "models": self._served.get("models"), "source": "health"},
                 "clm_latency_ms": lower.get("x-clm-latency-ms"),
             },
         )

@@ -69,13 +69,13 @@ class Server:
 
     def __init__(self, script: list[httpx.Response] | None = None, models: dict[str, Any] | None = None) -> None:
         self.script = list(script or [])
-        # /v1/models answers from here, which is also how a test makes the readiness read itself fail.
-        self.models: Any = models if models is not None else {"models": [{"name": "clm-latest"}]}
+        # /health answers from here, which is also how a test makes the readiness read itself fail.
+        self.models: Any = models if models is not None else {"ok": True, "models": ["clm-latest", "clm-raw"]}
         self.requests: list[httpx.Request] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
-        if request.url.path == "/v1/models":
+        if request.url.path == "/health":
             if isinstance(self.models, Exception):
                 raise self.models
             return ok(self.models)
@@ -161,6 +161,12 @@ class TestClmModel(IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.status, StatusCode.MODEL_CALL_FAILED)
         self.assertIn("recipe/clm/README.md", str(caught.exception))
 
+    async def test_the_readiness_read_is_the_path_the_omni_frontend_routes(self) -> None:
+        """clm-serve also serves /v1/models, but omni-jev routes only /v1/systemone and /health."""
+        server = Server()
+        await server.model().warm()
+        self.assertEqual([r.url.path for r in server.requests], ["/health"])
+
     async def test_warm_reports_a_server_that_is_not_listening(self) -> None:
         server = Server(models=httpx.ConnectError("refused"))
         with self.assertRaises(BaseError) as caught:
@@ -193,7 +199,7 @@ class TestClmModel(IsolatedAsyncioTestCase):
         model = server.model()
         for _ in range(3):
             await model.decide_many(OBSERVATION, {"pick": PICK})
-        reads = [r for r in server.requests if r.url.path == "/v1/models"]
+        reads = [r for r in server.requests if r.url.path == "/health"]
         self.assertEqual(len(reads), 1)
 
     async def test_a_readiness_read_that_fails_does_not_fail_the_decision(self) -> None:

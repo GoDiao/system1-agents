@@ -30,6 +30,10 @@ CLM_CKPT=/path/CLM_v0.1-8B.pt clm-serve --port 8091 \
 CLM_URL=http://127.0.0.1:8091 uv run s1a run ticket_router --model clm --rethink off --episodes 1 --seed 0
 ```
 
+Point `CLM_URL` at system1-omni's frontend (`omni-jev`, `:8080`) or straight at `clm-serve` (`:8091`); the
+frontend routes `/v1/systemone` and `/health`, which is all this backend reads, so both work. Going through the
+frontend is the path this repository's guidance asks for and the one the recorded demo uses.
+
 `CLM_URL` is the only setting that is required. `CLM_MODEL` picks `clm-latest` (the default) or `clm-raw`, the
 ablation that scores in the raw encoder space with no projection head — useful as a control, since it needs no
 training to be meaningful. The rest are in [configuration.md](configuration.md).
@@ -57,7 +61,7 @@ Two things differ from the Jev-shaped body, and both follow from how CLM reads a
 Choice and noul, like the other served backends; a `score` question is not offered to it. Images are not read. The
 engine's decision is stable to six decimals for the same request, so the model is `deterministic` and an unusable
 answer is not re-asked — a second call would pay the encoder again for the same distribution. Every decision records
-the URL, the `X-Request-Id` it sent and the names `/v1/models` reported; the agent fronts call `warm()` for that read,
+the URL, the `X-Request-Id` it sent and the names `/health` reported; the agent fronts call `warm()` for that read,
 and `decide` and `probe` make it once on their first decision instead.
 
 The engine keeps a candidate-vector cache across requests, which is the feature that makes it interesting and also
