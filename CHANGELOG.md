@@ -4,6 +4,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 ## Unreleased
 
+### Added
+
+- Snake recipe and game client: `evals/snake` vendors the laya-mlx snake CLI
+  (Apache-2.0) with single-game paced recording and a 16-game multigrid mode
+  against any `/v1/systemone` backend; `recipes/snake` documents setup,
+  verification, and recorded evidence (0 deaths; playback-speed-1 GIFs).
+
 ### Fixed
 
 - Windows development checks: the smoke script accepts CRLF output, shell scripts and Git hooks retain LF
