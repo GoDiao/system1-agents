@@ -41,7 +41,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
   however the task ends, a timeout included. The answer and `answer.json` name the file in `screenshot`. A judge
   that grades the end state can read it, as Harbor's WebVoyager judge does at `/logs/agent/final.png`. A failed
   screenshot leaves `screenshot` null, records the exception type in `screenshot_error` and changes nothing else in
-  the answer.
+  the answer. A `final.png` an earlier run left in a reused `--logs-dir` is removed when the task starts.
 - The MCP `decide` tool accepts `model="jev"|"laya"|"cua"`, defaulting to `jev`. Local backends use their
   optional extras and need no Jev API key.
 - `docs/benchmarks.md`: the Google Flights driver comparison rerun on 2026-09-23 from Poland, every arm three times on

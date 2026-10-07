@@ -119,7 +119,10 @@ browser-use/jev-ultrafast (MIT), whose observe-decide-act tick this policy follo
     does at `/logs/agent/final.png`. The runtime is the one `create_browser_agent` gave the agent's
     `BrowserRuntimeRail`, and the call is `browser_take_screenshot`. @playwright/mcp writes the PNG under its output
     directory (`.playwright-mcp/` in its cwd, or `--output-dir`) and links it in its report, relative to its cwd. The
-    runtime's MCP client drops the inline image, so the file is copied from that link. Nothing is taken when the
+    runtime's MCP client drops the inline image, so the file is copied from that link. The link's path is written
+    raw, so `SCREENSHOT_LINK` reads the whole `- [Screenshot of ...](...)` line and a directory such as `shots (1)`
+    keeps its parentheses. A `final.png` an earlier run left in a reused `--logs-dir` is removed when the task
+    starts, so a failed or skipped screenshot never leaves a judge the earlier page. Nothing is taken when the
     runtime never observed a page, because the tool would launch a new browser to take one. The call is capped at
     `SCREENSHOT_TIMEOUT_S` (5 s, @playwright/mcp's own screenshot timeout). A failure leaves `screenshot` null and
     records only the exception type in `screenshot_error`, because the exception text can quote the page.

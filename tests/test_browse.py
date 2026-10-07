@@ -206,6 +206,7 @@ class TestBrowseAssembly(IsolatedAsyncioTestCase):
 
 
 PNG = b"\x89PNG\r\n\x1a\n the page the task ended on"
+STALE = b"\x89PNG\r\n\x1a\n the page an earlier run in the same logs dir ended on"
 SHOT = os.path.join(".playwright-mcp", "page-2026-09-29T17-34-16-081Z.png")  # relative to the MCP server's cwd
 # openjiuwen's browser logger rewrites ./logs/browser_agent.log in the cwd once a BrowserRuntimeRail is built
 QUIET_BROWSER_LOG = {"OPENJIUWEN_BROWSER_AGENT_LOG_FILE": "off"}
@@ -232,9 +233,10 @@ class _FakeRuntime:
         failure: Exception | None = None,
         hang: bool = False,
         report: dict[str, str] | None = None,
+        shot: str = SHOT,
     ) -> None:
-        self.events, self.cwd, self.url, self.failure, self.hang = events, cwd, url, failure, hang
-        self.report = report or _screenshot_report(SHOT)
+        self.events, self.cwd, self.url, self.failure, self.hang, self.shot = events, cwd, url, failure, hang, shot
+        self.report = report or _screenshot_report(shot)
         self.service = SimpleNamespace(started=True, mcp_cfg=SimpleNamespace(params={"cwd": str(cwd)}))
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
@@ -248,8 +250,8 @@ class _FakeRuntime:
             await asyncio.sleep(60)
         if self.failure is not None:
             raise self.failure
-        (self.cwd / SHOT).parent.mkdir(exist_ok=True)
-        (self.cwd / SHOT).write_bytes(PNG)
+        (self.cwd / self.shot).parent.mkdir(parents=True, exist_ok=True)
+        (self.cwd / self.shot).write_bytes(PNG)
         return self.report
 
 
@@ -325,6 +327,30 @@ class TestRunTask(IsolatedAsyncioTestCase):
         self.assertEqual(answer["screenshot"], str(Path(tmp) / "final.png"))
         self.assertEqual(events[2:], ["screenshot", "cleanup", ("release", events[1][1])])
 
+    async def test_a_reused_logs_dir_gets_this_runs_page(self) -> None:
+        events: list[Any] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "final.png").write_bytes(STALE)
+            answer = await self._run(events, _FakeRuntime(events, Path(tmp)), Path(tmp))
+            self.assertEqual((Path(tmp) / "final.png").read_bytes(), PNG)
+        self.assertEqual(answer["screenshot"], str(Path(tmp) / "final.png"))
+
+    async def test_parentheses_in_the_screenshot_path_are_part_of_it(self) -> None:
+        """@playwright/mcp writes the path raw in its link, as with ``--output-dir "shots (1)"``."""
+        shots = {
+            "directory": os.path.join("shots (1)", "page-2026-10-07T00-00-00-000Z.png"),
+            "nested": os.path.join("a (b)", "c) (d", "page (2).png"),
+        }
+        for case, shot in shots.items():
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
+                events: list[Any] = []
+                logs_dir = Path(tmp) / "logs"
+                logs_dir.mkdir()
+                answer = await self._run(events, _FakeRuntime(events, Path(tmp), shot=shot), logs_dir)
+                self.assertEqual((logs_dir / "final.png").read_bytes(), PNG, "the PNG the MCP server wrote")
+                self.assertEqual(answer["screenshot"], str(logs_dir / "final.png"))
+                self.assertNotIn("screenshot_error", answer)
+
     async def test_a_failed_screenshot_changes_neither_the_outcome_nor_the_release(self) -> None:
         cases = {
             "RuntimeError": {"failure": RuntimeError("### Error\n- Page Title: Order 4411 for Jane Roe")},
@@ -334,9 +360,10 @@ class TestRunTask(IsolatedAsyncioTestCase):
         for error, case in cases.items():
             with self.subTest(error=error), tempfile.TemporaryDirectory() as tmp:
                 events: list[Any] = []
+                (Path(tmp) / "final.png").write_bytes(STALE)  # an earlier run's page in a reused logs dir
                 with patch.object(browse, "SCREENSHOT_TIMEOUT_S", 0.01):
                     answer = await self._run(events, _FakeRuntime(events, Path(tmp), **case), Path(tmp))
-                self.assertFalse((Path(tmp) / "final.png").exists())
+                self.assertFalse((Path(tmp) / "final.png").exists(), "no judge grades the earlier page")
                 self.assertEqual((answer["ok"], answer["final"], answer["error"]), (True, "done", None))
                 self.assertEqual((answer["screenshot"], answer["screenshot_error"]), (None, error))
                 self.assertNotIn("4411", json.dumps(answer), "the tool's error text stays out of the answer")
@@ -349,7 +376,9 @@ class TestRunTask(IsolatedAsyncioTestCase):
                 events: list[Any] = []
                 runtime = _FakeRuntime(events, Path(tmp), url="" if case == "no page seen" else "https://x")
                 runtime.service.started = case != "service stopped"
+                (Path(tmp) / "final.png").write_bytes(STALE)  # an earlier run's page in a reused logs dir
                 answer = await self._run(events, None if case == "no runtime" else runtime, Path(tmp))
+                self.assertFalse((Path(tmp) / "final.png").exists(), "no judge grades the earlier page")
                 self.assertEqual((answer["ok"], answer["screenshot"]), (True, None))
                 self.assertNotIn("screenshot_error", answer)
                 self.assertEqual(events[2:], ["cleanup", ("release", events[1][1])])

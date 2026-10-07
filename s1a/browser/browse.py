@@ -48,7 +48,8 @@ BROWSER_MODEL_NAMES = (
 RUNS_DIR = HOME / "runs" / "browser"
 FINAL_SCREENSHOT = "final.png"  # the page the task ended on, next to the run's records
 SCREENSHOT_TIMEOUT_S = 5.0  # @playwright/mcp's page.screenshot timeout; also caps a hung call before the cleanup
-SCREENSHOT_LINK = re.compile(r"\]\(([^()\r\n]+?\.png)\)")  # the screenshot report's link to its PNG, from the MCP cwd
+# the screenshot report's link line to its PNG, from the MCP cwd; the path is written raw and can hold parentheses
+SCREENSHOT_LINK = re.compile(r"^- \[Screenshot of [^\]\r\n]+\]\((.+\.png)\)\r?$", re.MULTILINE)
 
 
 def browser_result(final: str) -> dict[str, Any] | None:
@@ -156,11 +157,12 @@ async def save_final_screenshot(agent: DeepAgent, answer: Answer, logs_dir: Path
 async def run_task(agent: DeepAgent, goal: str, *, timeout_s: float, logs_dir: Path) -> Answer:
     """One conversation through the started Runner; a timed-out task keeps the harness's partial output.
 
-    However the task ends, the page it ended on is saved in ``logs_dir`` (``save_final_screenshot``), then the browser
-    (the agent's task resources) and the Runner session are released, so the next run in the same process starts its
-    own browser with its own launch args and cookies.
+    A ``final.png`` an earlier run left in ``logs_dir`` is removed first. However the task ends, the page it ended on
+    is saved there (``save_final_screenshot``), then the browser (the agent's task resources) and the Runner session
+    are released, so the next run in the same process starts its own browser with its own launch args and cookies.
     """
     answer: Answer = {"ok": False, "final": "", "screenshot": None, "error": None, "elapsed_ms": 0}
+    (logs_dir / FINAL_SCREENSHOT).unlink(missing_ok=True)  # a reused logs dir: a judge would grade the earlier page
     conversation_id = f"s1a-{datetime.now():%Y%m%d-%H%M%S}-{uuid4().hex[:6]}"
     await agent.ensure_initialized()
     started = time.perf_counter()
