@@ -14,7 +14,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "evals" / "snake"))
 
-from snake.game import DIRECTIONS, SnakeGame  # noqa: E402
+from snake.game import SnakeGame  # noqa: E402
 from snake.multi import run_multi  # noqa: E402
 from snake.multi_replay import backend_caption  # noqa: E402
 from snake.multi_ui import CELL_H, CELL_W, TOP_BAR, compose_multi  # noqa: E402
@@ -133,8 +133,16 @@ class TestPromptForwarding(unittest.TestCase):
             with mock.patch("snake.multi.LayaPolicy", FakePolicy):
                 run_multi(
                     [
-                        "--games", "1", "--steps", "1", "--fps", "100",
-                        "--prompt", "detailed", "--record", str(record),
+                        "--games",
+                        "1",
+                        "--steps",
+                        "1",
+                        "--fps",
+                        "100",
+                        "--prompt",
+                        "detailed",
+                        "--record",
+                        str(record),
                     ]
                 )
             first = json.loads(record.read_text().splitlines()[0])
