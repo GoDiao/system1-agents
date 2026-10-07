@@ -104,10 +104,30 @@ ranks that ticket correctly and the heads are what move it (n=1; a control, not 
 
 ## Recording
 
-`docs/assets/demos/ticket-router-clm.gif` is the run in this table, recorded at the terminal: 30 tickets, every
-decision with its key, confidence and latency, then the summary line. Nothing is typed or reordered — the frames
-are drawn from the output as it arrived. The same run as an asciicast is `ticket-router-clm.cast`. A demo
-illustrates one run; the table above is the evidence, and neither is a benchmark.
+`docs/assets/demos/ticket-router-clm.gif` is one run through the path
+[CONTRIBUTING.md](https://github.com/ThinkFlowLab/system1-agents/blob/main/CONTRIBUTING.md#agent-video-demos)
+asks for, recorded at the terminal by `demo.sh` and played at 1x: the System1-Omni frontend ready and saying who
+is behind it, the tickets, the queues the model chose, and the identity recorded in each tick.
+
+```
+curl -s http://127.0.0.1:8080/health      # omni-jev, with clm-serve behind it
+  {"ok": true, "embedder": true, "models": ["clm-latest", "clm-raw"]}   vector cache on cuda
+
+CLM_URL=http://127.0.0.1:8080 s1a run ticket_router --model clm --rethink off \
+  --episodes 1 --seed 0 --batch-size 3 --max-steps 3 --showcase --log
+  1 human conf=0.96   2 human conf=0.96   3 human conf=0.91     correct 0/3
+  served_by {"url": "http://127.0.0.1:8080", "models": ["clm-latest", "clm-raw"], "source": "health"}
+```
+
+The topology, which the caption on the pull request states in full: `s1a` -> `omni-jev` (system1-omni's frontend,
+`:8080`) -> `clm-serve` (upstream CLM's own server, `:8091`) -> Qwen3-8B on one RTX 4090. **`omni-clm`, the engine
+this project tracks, does not serve HTTP** — `src/models/clm/README.md` says the frontend owns that socket — so the
+engine behind `omni-jev` here is upstream's, not this repository's. That is the same gap
+`docs/supported-models.md` describes, and it is why the three tickets in this clip all route to `human`.
+
+Nothing in the clip is typed, reordered or invented: the frames are drawn from the output as it arrived. The same
+run as an asciicast is `ticket-router-clm.cast`. A demo illustrates one run; the probe's verdict and the tables
+above are the evidence, and neither is a benchmark.
 
 ## Reproduce
 
