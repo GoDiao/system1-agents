@@ -1,0 +1,33 @@
+# Agent use-case recipes
+
+Recipes answer: **How do I run agent X with decision model Y for task Z, and check the result?**
+Use the same setup → run → verify structure as [vLLM recipes](https://github.com/vllm-project/recipes),
+with agent-specific evidence: enumerated actions, an independently checked task outcome, the actual inference
+backend, and a video or recorded trace.
+
+## Available recipes
+
+| Use case | Agent / front | Execution profile | Validation |
+|---|---|---|---|
+| [Route support tickets](ticket-routing/README.md) | `ticket_router` / tool | Local CPU rule baseline; optional in-process Laya or HTTP Jev | Baseline smoke run; learned-model paths need their own run evidence |
+| [Play Snake](snake/README.md) | snake game client (`evals/snake`) / tool-style loop | System1-Omni native worker (H800); MPS dev path | 3×2400-step (0 deaths) and 16×600-step multigrid (0 deaths) recorded runs, playback-1 GIFs |
+
+The recipe's validation section identifies what was actually run. A supported model or a passing unit test
+does not establish that every agent/model/hardware combination was exercised.
+
+## Add a recipe
+
+Copy [TEMPLATE.md](TEMPLATE.md) to `recipes/<use-case>/README.md` and add a row above. Give the use case a short
+hyphenated name. Keep small safe fixtures beside the recipe; link larger recordings and result archives.
+Start from an existing agent. Adding a recipe does not require building another agent or changing its runtime.
+
+Each recipe should have one complete path from prerequisites to an observable result. Keep alternative model,
+engine and hardware profiles explicit, with their own validation status. Check both the agent client's contract
+and [System1-Omni's worker support](https://github.com/ThinkFlowLab/system1-omni/blob/main/docs/supported-models.md)
+before giving a served command. Record missing integrations as gaps.
+
+Include the task/inputs, setup, exact run and verification commands, source/checkpoint revisions, supported
+actions, a demo/trace, and troubleshooting. A recipe may document an untested profile, but it must say so.
+Follow the [video guide](../CONTRIBUTING.md#agent-video-demos) and [self-review skill](../.agents/skills/self-review/SKILL.md)
+for evidence and publishing checks. A small demonstration is not a benchmark; measured comparisons still
+follow the [evaluation protocol](../evals/README.md#protocol).
