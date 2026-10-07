@@ -10,6 +10,7 @@ backend, and the required application + System1-Agents + System1-Omni video for 
 | Use case | Agent / front | Execution profile | Validation |
 |---|---|---|---|
 | [Route support tickets](ticket-routing/README.md) | `ticket_router` / tool | Local CPU rule baseline; Laya/Jev alternatives and System1-Omni served Laya | Baseline smoke run; this fixture's required served-model video remains pending |
+| [Play Snake](snake/README.md) | snake game client (`evals/snake`) / tool-style loop | System1-Omni native worker (H800); MPS dev path | 3×2400-step (0 deaths) and 16×600-step multigrid (0 deaths) recorded runs, playback-1 GIFs |
 
 The recipe's validation section identifies what was actually run. A supported model or a passing unit test
 does not establish that every agent/model/hardware combination was exercised.

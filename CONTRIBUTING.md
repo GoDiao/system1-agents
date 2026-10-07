@@ -60,6 +60,33 @@ week for Python packages and one for the GitHub Actions.
   says how to verify. Include a **Demo / evidence** section; use the [self-review skill](.agents/skills/self-review/SKILL.md)
   and the recording guide below.
 
+Apply [committed artifact hygiene](.agents/skills/self-review/SKILL.md#committed-artifact-hygiene)
+in every review, including quick prechecks. Keep maintained fixtures and replay inputs; preserve raw run
+evidence in durable, reviewer-accessible PR/CI artifacts rather than committing redundant generated output.
+
+### Large code changes
+
+PRs with **more than 3,000 changed lines of authored code** need extra contributor
+attention before requesting review. Count additions plus deletions against the
+PR's merge base in source files, tests, and build or validation scripts. Report
+this count separately from the total diff size; exclude documentation, generated
+output, lockfiles, and static fixtures from the code count, while still reviewing
+those files for relevance and correctness.
+
+- Complete a full self-review of every affected component and its integration
+  boundaries. A quick precheck alone is insufficient; keep the PR in draft until
+  the contributor self-review is complete.
+- Consider splitting independent features, refactors, and cleanup into focused
+  PRs. If the change needs to stay together, explain why in the PR description
+  and provide a component map and suggested review order.
+- Include the code-line count and a validation summary for each affected area in
+  the PR description: commands, results, and unverified behavior with reasons.
+  Cover changed interfaces between components as well as individual components.
+
+Size signals the need for closer review; it is not itself a correctness finding.
+Choose checks based on the changed behavior and risk. Crossing this threshold
+alone does not require GPU benchmarks or other expensive experiments.
+
 ## Add an agent use-case recipe
 
 Use [recipes/README.md](recipes/README.md) and [the template](recipes/TEMPLATE.md) to document a complete task
@@ -172,8 +199,10 @@ Export a readable MP4 with H.264 where possible; aim below 10 MB. GitHub's
 [attachment guide](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files)
 lists supported formats and current limits. Drag the clip into the PR description's **Demo / evidence** section
 or a PR comment, wait for the upload to finish, and save the resulting link. Uploading makes the file public for
-this public repository. Use attachments for videos; keep sanitized reproduction commands and small result
-records in the repository or a durable reviewer-accessible archive. Verify the uploaded video plays and that
+this public repository. Use attachments for videos; keep sanitized reproduction commands and maintained
+fixtures in the repository, and generated run records in a durable reviewer-accessible archive or PR/CI
+evidence, following [artifact hygiene](.agents/skills/self-review/SKILL.md#committed-artifact-hygiene).
+Verify the uploaded video plays and that
 reviewers can open its linked trace.
 
 Use a caption such as:
