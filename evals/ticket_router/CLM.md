@@ -159,10 +159,15 @@ The run's job folder holds the per-ticket routes, the probabilities behind each 
   CLM's interval and random's are the same interval, so the defensible reading is "not distinguishable from
   random", not "exactly random". The short-question row's upper bound reaches the keyword baseline, so that row is
   not separated from it with confidence either.
-- **Repeating the run does not narrow any of this.** The engine is deterministic — the same seed re-run gives
-  exactly 6 again, and the same request five times gives byte-identical probabilities — so there is no run-to-run
-  noise to average out. More seeds shuffle the same thirty tickets. The only thing that narrows these intervals is
-  a larger labelled set: 300 tickets at these rates would give 16–25% and 35–46%.
+- **Repeating the run does not narrow any of this**, and that is measured. Through `omni-jev`: the 90-decision
+  protocol gave `mean_score 6.0` three times, the single-episode run gave 6.0 three times, and the fit probe
+  returned `4/12, not a decision-model task` twice. Only the client round trip moved (78, 82, 85 ms median). The
+  engine is deterministic — the same request five times gives byte-identical probabilities — so a repeat returns
+  the same number rather than a better estimate of it. More seeds shuffle the same thirty tickets. The only thing
+  that narrows these intervals is a larger labelled set: 300 tickets at these rates would give 16–25% and 35–46%.
+- **Every number on this page was taken straight against `clm-serve`**, and those repeats are the check that the
+  frontend does not change them: `omni-jev` proxies `/v1/systemone` unchanged, so the figures are the same through
+  `http://127.0.0.1:8080` as through `http://127.0.0.1:8091`.
 - The encoder is Transformers with last-token pooling, not a vLLM pooling server. The heads were trained against
   the vLLM path; a deployment's encoder is a different implementation and this page does not measure it.
 - The framing table is one run per row and was measured after the first result, so it is exploratory.
