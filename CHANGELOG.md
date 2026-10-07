@@ -4,14 +4,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 ## Unreleased
 
+### Added
+
+- Snake recipe and game client: `evals/snake` vendors the laya-mlx snake CLI
+  (Apache-2.0) with single-game paced recording and a 16-game multigrid mode
+  against any `/v1/systemone` backend; `recipes/snake` documents setup,
+  verification, and recorded evidence (0 deaths; playback-speed-1 GIFs).
+
 ### Fixed
 
 - Windows development checks: the smoke script accepts CRLF output, shell scripts and Git hooks retain LF
   line endings, and tests check socket closure and invalid output directories without Unix-specific behavior.
   The core CI matrix now covers Windows with Python 3.11.
+- Rail, tool, and browser evaluations charge Jev-rate input tokens only when the decision backend declares
+  them billable. Local model token usage remains recorded without Jev API charges.
 
 ### Added
 
+- Agent use-case recipe index, authoring template and contributor skill, with a runnable ticket-routing
+  example and independent fixture verification.
+- Contributor guidance for recording and attaching agent video demos, identifying the inference engine and
+  checking supported System1-Omni paths, linked from the builder/self-review skills and PR template.
+- `--model laya-served`: Laya served over HTTP by system1-omni's worker (or plain laya-serve), on every front that
+  takes `laya`, in `decide` and in MCP `decide`. Configured by `LAYA_SERVED_URL` and optional `LAYA_SERVED_*`
+  variables; no cloud key. Run records name the served checkpoint, revision and device. Design, API spec and the
+  run steps: `docs/served-laya.md`, `docs/api/`.
+- Tool-front ticks keep the answering model as `model`, and a served model's `served_by`, `url`, `request_id` and
+  `server_timing`.
 - `--model omnijev` on the browser agents: [OmniJev](https://github.com/tinnel123666888/OmniJev) (Apache-2.0), a
   Qwen3.5 vision-language decision model, in process behind `uv sync --extra omnijev` and a local clone named by
   `OMNIJEV_REPO`. It decides over a screenshot; `docs/decision-models.md`, `docs/configuration.md`.

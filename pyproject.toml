@@ -55,7 +55,7 @@ omnijev = [  # OmniJev behind --model omnijev; the model code itself is a clone 
     "pillow",
     "huggingface-hub>=0.24",
 ]
-dev =["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6", "ty>=0.0.83"]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6", "ty>=0.0.83", "jsonschema>=4.18", "pyyaml>=6", "referencing>=0.30"]  # the last three check tests/data/served_laya against docs/api
 
 [build-system]
 requires = ["hatchling"]

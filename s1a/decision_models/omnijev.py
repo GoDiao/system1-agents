@@ -117,6 +117,7 @@ class OmniJevModel(DecisionModel):
     name = "omnijev"
     supports_images = True
     deterministic = True
+    bills_input_tokens = False  # in process, not Jev's pricing
 
     def __init__(self, agent: OmniJevAgent, *, model: str, prompt: str = OMNIJEV_DEFAULT_PROMPT) -> None:
         if prompt not in OMNIJEV_PROMPTS:
