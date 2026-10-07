@@ -89,6 +89,24 @@ every browser call (`evals/replay/cast.py`), `s1a run flights --model omnijev --
 The video attached to the PR is the first run's frames at 4x speed, no cuts (44 s). At CPU speed the 240 s browser
 budget allows two or three decisions; the GPU runs above are the task-level evidence.
 
+## Recorded runs on GPU (2026-10-07, at 0829ce0)
+
+OmniJev-4B v1.1 in process on one NVIDIA A40 46 GB (driver 615.71.09, Linux 6.8), OmniJev clone at 14dbec4, prompt
+`full`, Playwright's Chromium build 1194 headless on its own profile, Google's consent refused once, one frame after
+every browser call; three runs in a row, all kept (`record_omnijev4b.sh`; `versions.txt` has the exact commits).
+The task date is `GOAL_DATE`, here November 8, 2026.
+
+| folder | decisions | median decision | end | what happened |
+|---|---|---|---|---|
+| `2026-10-07-a40/run1/` | 25 | 1.8 s | form budget | steps 1 to 9 (47 s) fill the form right: Zurich, London, one way, Sun Nov 8, Done; then Enter in Departure instead of Search, scrolls, the location pop-up, the main menu, "Flights from New York" |
+| `2026-10-07-a40/run2/` | 25 | 2.0 s | form budget | the same 9 steps, then scrolls up and down without clicking Search |
+| `2026-10-07-a40/run3/` | 25 | 1.8 s | form budget | the same 25 decisions as run 1 |
+
+0 of 3 completed; none reached the results page. This is the most common outcome class of the 20 A100 runs above
+("form filled, lost after it"). The video attached to the PR is run 1 in real time, no cuts, with each decision
+under its frame (`annotate_omnijev4b.py`). Each folder holds `answer.json`, `decision_ticks.json` and `calls.jsonl`
+(the browser calls and their times).
+
 ## Serving
 
 system1-omni has no OmniJev vision worker: its supported models are Laya (text), Open-Jev-27B (text) and Cua-S1
