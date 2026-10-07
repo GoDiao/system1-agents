@@ -24,6 +24,12 @@ def load_multi(path):
             summary = event["summary"]
     if metadata is None or not frames:
         raise ValueError("Recording must contain metadata and frames")
+    for f in frames:
+        if not isinstance(f.get("at"), (int, float)):
+            raise ValueError("Recording frame is missing a numeric 'at' timestamp")
+    # Concurrent games append under a lock, so file order is not time order;
+    # playback and the start/end bounds walk frames by their timestamps.
+    frames.sort(key=lambda f: f["at"])
     return metadata, frames, summary
 
 

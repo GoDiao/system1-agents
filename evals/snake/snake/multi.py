@@ -10,7 +10,7 @@ import json
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -127,26 +127,36 @@ def run_multi(argv=None):
                 stop.wait(remaining)
 
     period = 1 / args.fps
-    with ThreadPoolExecutor(max_workers=args.games) as pool:
-        futures = [pool.submit(loop, r, period) for r in runners]
-        for f in futures:
-            f.result()
-    stop.set()
-    elapsed = time.perf_counter() - started
-    all_inference = [ms for r in runners for ms in r.inference]
-    summary = {
-        "games": args.games,
-        "steps_per_game": args.steps,
-        "total_steps": sum(r.steps for r in runners),
-        "seconds": elapsed,
-        "decisions_per_second": sum(r.steps for r in runners) / elapsed,
-        "mean_inference_ms": sum(all_inference) / len(all_inference) if all_inference else None,
-        "deaths": sum(r.deaths for r in runners),
-        "interventions": sum(r.interventions for r in runners),
-        "scores": [r.game.score for r in runners],
-        "best_score": max((r.game.score for r in runners), default=0),
-    }
-    record.write(json.dumps({"type": "end", "summary": summary}) + "\n")
-    record.close()
+    try:
+        with ThreadPoolExecutor(max_workers=args.games) as pool:
+            futures = [pool.submit(loop, r, period) for r in runners]
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except BaseException:
+                    # Signal before the pool's shutdown(wait=True) so sibling
+                    # games stop at their next step instead of running their
+                    # full budget after one game has already failed.
+                    stop.set()
+                    for other in futures:
+                        other.cancel()
+                    raise
+        elapsed = time.perf_counter() - started
+        all_inference = [ms for r in runners for ms in r.inference]
+        summary = {
+            "games": args.games,
+            "steps_per_game": args.steps,
+            "total_steps": sum(r.steps for r in runners),
+            "seconds": elapsed,
+            "decisions_per_second": sum(r.steps for r in runners) / elapsed,
+            "mean_inference_ms": sum(all_inference) / len(all_inference) if all_inference else None,
+            "deaths": sum(r.deaths for r in runners),
+            "interventions": sum(r.interventions for r in runners),
+            "scores": [r.game.score for r in runners],
+            "best_score": max((r.game.score for r in runners), default=0),
+        }
+        record.write(json.dumps({"type": "end", "summary": summary}) + "\n")
+    finally:
+        record.close()
     print(json.dumps(summary, indent=2), file=sys.stderr)
     return 0

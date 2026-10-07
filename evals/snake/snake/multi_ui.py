@@ -4,9 +4,17 @@ import math
 
 from .ui import AMBER, CYAN, DIM, FG, GREEN, MUTED, RED, Canvas
 
-CELL_W = 44
-CELL_H = 22
 TOP_BAR = 5
+
+
+def cell_size(width, height):
+    """Screen extent of one grid slot for a board of (width, height): the
+    board, its borders, the side probability bars and one column of padding.
+    The stock 24x16 board keeps the original 44x22 slot."""
+    return max(34, width + 20), max(19, height + 6)
+
+
+CELL_W, CELL_H = cell_size(24, 16)
 
 
 def _draw_pending(c, ox, oy, g):
@@ -83,8 +91,13 @@ def compose_multi(games, stats, cols=4, caption="SYSTEM1-OMNI"):
     recording; games without a frame yet render as pending placeholders."""
     n = len(games)
     rows = math.ceil(n / cols)
-    width = 6 + cols * CELL_W
-    height = TOP_BAR + rows * CELL_H + 2
+    boards = [g.get("game") or g for g in games] or [{}]
+    cell_w, cell_h = cell_size(
+        max(b.get("width", 24) for b in boards),
+        max(b.get("height", 16) for b in boards),
+    )
+    width = 6 + cols * cell_w
+    height = TOP_BAR + rows * cell_h + 2
     c = Canvas(width, height)
     c.put(1, 3, caption, MUTED)
     line = (
@@ -96,8 +109,8 @@ def compose_multi(games, stats, cols=4, caption="SYSTEM1-OMNI"):
     c.put(2, 3, line, GREEN)
     c.put(3, 3, "─" * (width - 6), DIM)
     for i, g in enumerate(games):
-        ox = 3 + (i % cols) * CELL_W
-        oy = TOP_BAR + (i // cols) * CELL_H
+        ox = 3 + (i % cols) * cell_w
+        oy = TOP_BAR + (i // cols) * cell_h
         if g.get("pending"):
             _draw_pending(c, ox, oy, g)
         else:
