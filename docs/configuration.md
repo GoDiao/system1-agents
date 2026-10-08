@@ -11,6 +11,7 @@ Variables can be exported in your shell or placed in a `.env` file at the root o
 | `TYPESAFE_API_KEY` | `jev` model | *(unset)* | API key for direct TypeSafe decisions endpoint (`https://api.typesafe.ai/v1/systemone`). |
 | `TYPESAFE_API_URL` | `jev` model | `https://openrouter.ai/api/alpha/decisions` | Endpoint URL for decisions; defaults to OpenRouter proxy, or can be overridden to a custom proxy URL. |
 | `TYPESAFE_MODEL` | `jev` model | `typesafe/jev-1.13` | Model identifier when proxying Jev decisions through OpenRouter. |
+| `S1A_DECISION_TIMEOUT_S` | `jev` model | `5` | Seconds one decision may take, retries included. Raise it for a slower System One server behind `TYPESAFE_API_URL` (e.g. a local OneJev-27B or CLM-8B: `30`). |
 | `OPENROUTER_API_KEY` | `jev` model (proxy), chat model fallback | *(unset)* | OpenRouter API key, used for proxying Jev decisions or as a fallback for `LLM_API_KEY`. |
 | `OPENROUTER_BASE_URL` | chat model fallback | `https://openrouter.ai/api/v1` | Fallback base URL for the chat model when `LLM_BASE_URL` or `OPENAI_BASE_URL` is unset. |
 | `MODEL_NAME` | chat model (`llm` model, rethink planner, browser agent) | *(unset)* | Model identifier for the chat model (e.g. `google/gemini-2.5-flash` or `claude-fable-5-1`). |
@@ -30,8 +31,9 @@ Variables can be exported in your shell or placed in a `.env` file at the root o
 | `LAYA_MODEL` | `laya` model | `convaiinnovations/laya` | Hugging Face repository ID or local path for the resident Laya decision model checkpoint. |
 | `LAYA_SUBFOLDER` | `laya` model | *(unset)* | Optional subfolder in the checkpoint repo (e.g. `multilingual` or `typed-decisions`). |
 | `LAYA_DEVICE` | `laya` model | `(library default)` | PyTorch device for Laya model evaluation; passes None so the library selects CUDA, MPS, or CPU. |
-| `LAYA_MAX_LEN` | `laya` model | `(checkpoint default)` | Maximum token sequence length for Laya state representation; overrides checkpoint window only when set. |
-| `LAYA_HEAD_MAX_LEN` | `laya` model | `(checkpoint default)` | Maximum token sequence length for Laya decision head options; overrides checkpoint window only when set. |
+| `LAYA_MAX_LEN` | `laya` model | `(checkpoint default)` | Maximum token sequence length for Laya state representation; overrides checkpoint window only when set. Browser agents want `1536`. |
+| `LAYA_HEAD_MAX_LEN` | `laya` model | `(checkpoint default)` | Maximum token sequence length for Laya decision head options; overrides checkpoint window only when set. Browser agents want `1024`. |
+| `LAYA_COMPACT_BROWSER_STATE` | `laya` model | `1` | Folds a browser-front state and its questions to fit Laya's window (`laya_state`, `laya_browser_question`); `0`, `false` or `no` sends them as Jev gets them. |
 | `LAYA_SERVED_URL` | `laya-served` model | *(unset, required)* | Base URL of a served Laya: the system1-omni worker (`http://127.0.0.1:8000`), its `omni-jev` frontend (`:8080`) or plain laya-serve. |
 | `LAYA_SERVED_MODEL` | `laya-served` model | `english` | Name of the served checkpoint to ask: `english`, `multilingual` or `typed-decisions`. A name the server does not know raises instead of being routed by language. |
 | `LAYA_SERVED_API_KEY` | `laya-served` model | *(unset)* | Bearer token, the server's `LAYA_API_KEY` when it sets one. |

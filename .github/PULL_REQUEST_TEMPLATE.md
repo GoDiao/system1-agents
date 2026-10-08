@@ -23,11 +23,19 @@
 ## Demo / evidence
 
 <!-- Follow CONTRIBUTING.md#agent-video-demos and .agents/skills/self-review/SKILL.md:
-task input → actions → observed result; identify the actual inference engine;
+Important PRs require a video of application/task + System1-Agents decision-model agent
+and System1-Omni inference in the same run, with input → actions → observed result.
+Choose a relevant README use case; use PR #35's recording as the example. Identify the actual inference engine;
 reproduction command/fixture and exact baseline/head commits; measured comparisons
 and raw results; useful demo/figure links with source revision, replay speed, and
 limitations. Check asset rights and redaction. Label illustrations separately from
-actual runs. Video is optional; use N/A with a reason where evidence does not apply. -->
+actual runs. Use N/A only for the guide's minor-change exemption. A missing required
+video is a review gap: name its blocker/follow-up and keep the PR draft until it is
+supplied or a maintainer accepts the documented exception. -->
+
+- Video link, or exemption/blocker with follow-up:
+- Application/task → agent actions → independently checked result:
+- System1-Agents / System1-Omni commits, checkpoint and worker/frontend provenance:
 
 For an agent-assisted self-review, use the [self-review skill](https://github.com/ThinkFlowLab/system1-agents/blob/main/.agents/skills/self-review/SKILL.md).
 For recording and upload instructions, use the [agent video guide](https://github.com/ThinkFlowLab/system1-agents/blob/main/CONTRIBUTING.md#agent-video-demos).
