@@ -16,9 +16,9 @@ hook of a running agent. The injection guard rail fails closed: a decision error
 | `blackjack` | tool | payoff per hand (RLCard) | `s1a run blackjack --model jev --rethink off --episodes 100` |
 | `injection_guard` | rail | precision and recall on a labelled injection set | `s1a run injection_guard` |
 
-Every tool agent takes `--model jev|laya|cua|llm|random|rule`, `--rethink on|off`, `--episodes N`, `--seed S`,
+Every tool agent takes `--model jev|clm|laya|cua|llm|random|rule`, `--rethink on|off`, `--episodes N`, `--seed S`,
 `--max-steps` and `--timeout`, and writes a Harbor-shaped job folder under `evals/results/<agent>/`. A browser agent
-takes `--model jev|laya|cua|llm` and `--goal`. A rail takes `--model jev|laya`, the two models that answer `noul`.
+takes `--model jev|clm|laya|cua|llm` and `--goal`. A rail takes `--model jev|clm|laya|laya-served`, the models that answer `noul`.
 `uv run python -m evals.table evals/results` aggregates every job folder per eval and model into one table.
 
 Every `run` prints one JSON object on stdout and nothing else there; `s1a-mcp` serves the same agents over stdio
