@@ -20,6 +20,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
   The core CI matrix now covers Windows with Python 3.11.
 - Rail, tool, and browser evaluations charge Jev-rate input tokens only when the decision backend declares
   them billable. Local model token usage remains recorded without Jev API charges.
+- Browser front: a WAIT whose in-page settle moved the page now records `page_changed: true` in the history, so
+  the next state no longer shows that wait as unmeasured.
 
 ### Added
 
@@ -42,9 +44,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 - `docs/benchmarks.md`: the Google Flights driver comparison rerun on 2026-09-23 from Poland, every arm three times on
   both decision backends, next to the baseline rows in one table; the 24 S1A records, as one archive, and the chart
   under `docs/results/flights/rerun-2026-09-23/`.
+- `laya_state` (`s1a/decision_models/laya.py`): folds a browser-front state to fit Laya's 512 to 1024 token
+  window before every call — `page.text` dropped, one short line per element row instead of a JSON object, the
+  last three actions instead of ten, a probe flag such as `"expanded": "false"` read as off, and "(no change)"
+  only on an action measured as unchanged — roughly a tenfold reduction in the JSON-shaped state on the pages measured.
+  On by default; `LAYA_COMPACT_BROWSER_STATE=0` turns it off. `docs/decision-models.md`.
+- `laya_browser_question` (`s1a/decision_models/laya.py`): with a folded browser state, each browser question
+  reaches Laya as the goal and the operation (the agent's long rules dropped) and each target option as its
+  element's label and value. Laya fits a question's instruction and all its options into one `head_max_len`
+  budget, so a 23-element target head left each option about six tokens, `12: {"element": "[`, and no
+  element name. `text_value` gets its own ask; options that shorten alike keep their key; a blocked row keeps its
+  overlay's name. Browser runs want `LAYA_MAX_LEN=1536` and `LAYA_HEAD_MAX_LEN=1024`: a calendar page's target
+  head measures about 900 tokens.
 
 ### Changed
 
+- Important agent/inference PRs require an application + System1-Agents + System1-Omni video, following
+  PR #35's worked example. Contributor skills, recipes and the PR template retain missing demos as review gaps.
 - `--model laya` no longer draws the encoder's random weights before the checkpoint replaces them, which took most
   of a load of about 40 s on CPU. The `laya` extra now needs laya 0.3.9 or later, which skips the draw itself,
   and the lock moves from 0.3.5 to 0.3.20. Weights and answers are unchanged: laya 0.3.10 and later run a request

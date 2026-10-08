@@ -16,6 +16,7 @@ simple and does not measure classification quality on real support traffic.
 | `--model rule` | Deterministic keyword baseline (`keywords` in the run record) | Core install, CPU, no model or API calls; see recorded smoke evidence below |
 | `--model laya` | Laya in process | `laya` extra and checkpoint; CPU selected below; command checked, real-model run not recorded for this recipe |
 | `--model jev` | TypeSafe Jev over HTTP | TypeSafe or OpenRouter decision key; command checked, live endpoint run not recorded for this recipe |
+| `--model laya-served` | System1-Omni Laya worker through `omni-jev` | Prepared worker/frontend; this fixture's serving run and video remain pending |
 
 ## Prerequisites and setup
 
@@ -104,24 +105,38 @@ For hosted Jev, configure `TYPESAFE_API_KEY` for the direct service or `OPENROUT
 [the configuration guide](../../docs/configuration.md), then use the baseline command with `--model jev`.
 `MODEL_NAME=` still disables chat fallback; Jev decision calls are external and billed.
 
-### System1-Omni serving status
+### Required System1-Omni demo profile
 
 [System1-Omni supports Laya workers](https://github.com/ThinkFlowLab/system1-omni/blob/main/docs/supported-models.md),
-but this recipe's base agent revision does not register `--model laya-served`. The integration is proposed in
-[PR #35](https://github.com/ThinkFlowLab/system1-agents/pull/35), which contains its own ticket-router serving
-results. Those are separate evidence, not a validation of this fixture. Use a branch with a compatible client
-before trying the served profile; pin both repositories and link worker/frontend evidence as well as routes.
-Do not label the in-process Laya command above as a System1-Omni run.
+and the client from merged [PR #35](https://github.com/ThinkFlowLab/system1-agents/pull/35) registers
+`--model laya-served`. Follow [the served setup](../../docs/served-laya.md#8-run-it) for the worker and Rust
+frontend, then record its ready endpoint and this fixture's agent run:
+
+```bash
+curl --fail http://127.0.0.1:8080/health
+MODEL_NAME= LAYA_SERVED_URL=http://127.0.0.1:8080 uv run s1a run ticket_router --model laya-served --rethink off \
+  --dataset recipes/ticket-routing/tickets.jsonl --batch-size 5 \
+  --episodes 1 --seed 0 --max-steps 5 --timeout 60 --showcase --log \
+  > runs/recipes/ticket-routing/summary.json
+```
+
+Run the same verifier and show the input tickets, actual selected routes and checked outcome. Include the
+answering `model`, `served_by`, frontend `url` and `request_id` from this run's ticks, with both repositories'
+commits and worker/checkpoint/device settings. Preserve a failed route as a failed outcome.
+Use [PR #35's video and caption](https://github.com/ThinkFlowLab/system1-agents/pull/35#issuecomment-6017425034)
+as the example. It covers three tickets from a different dataset and does not validate this five-ticket fixture.
 
 ## Demo and validation
 
 Record the terminal command, ticket inputs, actual selected routes and the verifier's outcome using the
-[video guide](../../CONTRIBUTING.md#agent-video-demos). A rule-baseline recording demonstrates mechanics;
-record a real decision-model profile separately to demonstrate its inference. Show failures or interventions
+[video guide](../../CONTRIBUTING.md#agent-video-demos). Important PRs require the application/task +
+System1-Agents + System1-Omni video from the served profile above. The rule and in-process runs provide
+additional evidence and do not fulfill that requirement. Show failures or interventions
 and link the run artifacts. The historical ticket-router replay in the root README covers a different workload.
 
 The recipe's smoke validation and source/environment details are recorded in [smoke-evidence.json](smoke-evidence.json).
 No video, live Jev run, Laya inference or System1-Omni fixture run is recorded for this recipe yet.
+Its full demonstration remains an explicit evidence gap until that run and video are supplied.
 
 ## Troubleshooting and limits
 

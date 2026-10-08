@@ -30,7 +30,12 @@ source revisions/local modifications, fixture hashes, environment, exact command
 command-only checks and untested profiles explicitly. One working demo is not a quality or performance claim.
 
 Prepare the demo using [the video guide](../../../CONTRIBUTING.md#agent-video-demos), including captions,
-trace links and actual engine provenance. Retain failures, interventions and replay speed/source. Add the
-recipe to the index and link reusable shared documentation rather than copying it. Use the
+trace links and actual engine provenance. For important PRs, require a video of the application/task,
+System1-Agents decision-model agent and System1-Omni inference in the same run, as in the linked PR #35 example.
+Choose the relevant computer/browser/embodied/game/routing/guardrail application from the guide's README candidates.
+A rule control or in-process run does not fulfill that requirement. Record missing support/resources as a
+review gap and keep the PR draft unless a maintainer accepts the documented exception.
+Retain failures, interventions and replay speed/source. Add the recipe to the index and link reusable
+shared documentation rather than copying it. Use the
 [self-review skill](../self-review/SKILL.md) for the final contributor report. Recipe authoring does not itself
 authorize live model calls, downloads or external publication.
