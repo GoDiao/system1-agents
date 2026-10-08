@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import math
+import os
 import sys
 import uuid
 from contextlib import asynccontextmanager
@@ -25,7 +27,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 from s1a.desktop.driver import CuaDriver, DriverError, Snapshot, driver_from_env, opened
-from s1a.desktop.env import ABSTAIN, WindowEnv, clickable
+from s1a.desktop.env import ABSTAIN, WindowEnv, clickable, observable
 from s1a.spec import Budget, Series, ToolAgentSpec
 
 RULES = (
@@ -41,12 +43,31 @@ def shows(snapshot: Snapshot, text: str) -> bool:
     wanted = text.strip()
     if not wanted:
         return False
-    return any((e.value.strip() == wanted or e.label.strip() == wanted) for e in snapshot.elements if not clickable(e))
+    return any(
+        (e.value.strip() == wanted or e.label.strip() == wanted)
+        for e in snapshot.elements
+        if observable(e) and not clickable(e)
+    )
 
 
 def parse_plan(text: str) -> tuple[tuple[str, ...], ...]:
     """``"1,2,Multiply|×"`` to ``(("1",), ("2",), ("Multiply", "×"))``."""
     return tuple(tuple(v.strip() for v in step.split("|")) for step in text.split(",") if step.strip())
+
+
+def parse_pixel_targets(entries: list[str]) -> dict[str, tuple[float, float]]:
+    """Task-defined points in screenshot fractions; the model chooses among these bounded targets."""
+    points: dict[str, tuple[float, float]] = {}
+    for entry in entries:
+        key, sep, value = entry.partition("=")
+        try:
+            x, y = map(float, value.split(","))
+        except ValueError as exc:
+            raise ValueError("--pixel-target requires KEY=X,Y with screenshot fractions") from exc
+        if not sep or not key.strip() or key in points or not all(math.isfinite(p) and 0 <= p < 1 for p in (x, y)):
+            raise ValueError("--pixel-target requires unique keys and finite coordinates in [0, 1)")
+        points[key] = (x, y)
+    return points
 
 
 def plan_rule(plan: tuple[tuple[str, ...], ...]) -> Any:
@@ -56,7 +77,7 @@ def plan_rule(plan: tuple[tuple[str, ...], ...]) -> Any:
         step = len(state["presses"])
         if step >= len(plan):
             return ABSTAIN
-        keys = (label if label.startswith(("click:", "type:")) else f"click:{label}" for label in plan[step])
+        keys = (label if label.startswith(("click:", "type:", "pixel:")) else f"click:{label}" for label in plan[step])
         return next((key for key in keys if key in candidates), ABSTAIN)
 
     return rule
@@ -90,8 +111,19 @@ async def _session(driver: CuaDriver, app: str, *, owner: str, title: str) -> As
 
 
 def make_series(flags: argparse.Namespace) -> Series:
-    if flags.app_path and sys.platform == "win32":
-        raise ValueError("--app-path currently accepts macOS .app bundles only")
+    if flags.app_path and sys.platform != "darwin":
+        raise ValueError("--app-path is supported only on macOS")
+    pixel_targets = parse_pixel_targets(flags.pixel_target)
+    visual_model = (
+        flags.model == "cua"
+        and os.getenv("CUA_S1_VARIANT", "nano") == "4b"
+        and os.getenv("CUA_S1_MODALITY", "multimodal") == "multimodal"
+    )
+    if pixel_targets and flags.model not in {"rule", "random"} and not visual_model:
+        raise ValueError(
+            "--pixel-target requires a screenshot model: use --model cua with CUA_S1_VARIANT=4b and "
+            "CUA_S1_MODALITY=multimodal, or an explicit rule/random baseline"
+        )
     plan = parse_plan(flags.plan) if flags.plan else ()
     if flags.verify_file and not flags.text:
         raise ValueError("--verify-file requires --text")
@@ -128,6 +160,8 @@ def make_series(flags: argparse.Namespace) -> Series:
             text=flags.text,
             text_target=flags.text_target,
             text_mode=flags.text_mode,
+            pixel_targets=pixel_targets,
+            screenshot=visual_model,
         )
 
     return Series(
@@ -161,6 +195,13 @@ def flags(parser: argparse.ArgumentParser) -> None:
         help="insert at selection, or replace a native field's entire value; both require fresh readback",
     )
     parser.add_argument("--verify-file", default="", help="also require this file's UTF-8 content to equal --text")
+    parser.add_argument(
+        "--pixel-target",
+        action="append",
+        default=[],
+        metavar="KEY=X,Y",
+        help="task-defined screenshot point (fractions in [0,1)); repeat for closed visual choices",
+    )
 
 
 SPEC = ToolAgentSpec(

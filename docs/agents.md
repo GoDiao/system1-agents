@@ -31,7 +31,7 @@ models behind them: [architecture.md](architecture.md#models).
 `s1a run <agent> --help` lists every flag with its default. Beyond the shared ones: `flights` and `allrecipes` take `--goal`,
 `--batch on|off`, `--prefetch on|off`, `--goal-values on|off`, `--profile-out` and `--logs-dir`; `desktop` takes
 `--app`, `--app-path`, `--window-title`, `--goal`, `--expect`, `--execute`, `--plan`, `--clear`, `--text`,
-`--text-target`, `--text-mode` and `--verify-file`; `ticket_router` takes `--dataset` and
+`--text-target`, `--text-mode`, `--verify-file` and `--pixel-target`; `ticket_router` takes `--dataset` and
 `--batch-size`; `injection_guard` takes `--labelled-set`. The four games take no flag of their own.
 
 ### Desktop text input
@@ -44,6 +44,13 @@ supported through native field replacement. `--window-title` selects the documen
 `--verify-file` requires the expected window state and a file changed during this episode whose UTF-8 content
 matches `--text`. Without `--execute`, the first decision is only recorded as a plan.
 The [macOS fixture](../evals/desktop/README.md) provides a local Laya demo and a fixed-plan execution check.
+
+### Desktop screenshot targets
+
+`--pixel-target KEY=X,Y` offers named points in screenshot fractions. Local Cua-S1 4B multimodal can select
+among them when controls have no accessibility elements. Each click carries its screenshot capture ID.
+Install the `cua-four-b` extra and set `CUA_S1_VARIANT=4b`, `CUA_S1_MODALITY=multimodal`.
+See [the macOS visual task](../evals/desktop/visual.md) for setup and verification commands.
 
 ## Allrecipes
 

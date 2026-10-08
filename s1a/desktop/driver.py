@@ -7,6 +7,7 @@ The driver runs in ``standard`` permission mode; every action names the pid and 
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import shutil
@@ -17,7 +18,9 @@ from typing import Any, AsyncIterator, Protocol
 
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
-from mcp.types import TextContent
+from mcp.types import ImageContent, TextContent
+
+from s1a.decision_models.types import Image
 
 Json = dict[str, Any]
 INSTALL_HINT = (
@@ -61,19 +64,29 @@ class Element:
 
 
 @dataclass(frozen=True)
+class Capture:
+    capture_id: str
+    image: Image
+    width: int
+    height: int
+
+
+@dataclass(frozen=True)
 class Snapshot:
     window: Window
     snapshot_id: str | None
     elements: tuple[Element, ...]
     raw: Json = field(repr=False, compare=False)
+    capture: Capture | None = None
 
 
 class Driver(Protocol):
     """Window-scoped observation and input used by the desktop environment."""
 
     async def find_window(self, app_name: str, window_title: str = "") -> Window: ...
-    async def window_state(self, window: Window) -> Snapshot: ...
+    async def window_state(self, window: Window, *, screenshot: bool = False) -> Snapshot: ...
     async def click(self, window: Window, token: str) -> Json: ...
+    async def click_at(self, window: Window, capture: Capture, x: float, y: float) -> Json: ...
     async def type_text(self, window: Window, token: str, text: str) -> Json: ...
     async def set_value(self, window: Window, token: str, text: str) -> Json: ...
 
@@ -126,13 +139,17 @@ class CuaDriver:
         if result.isError:
             raise DriverError(f"{tool}: {text or 'the driver returned an error'}")
         if isinstance(result.structuredContent, dict):
-            return result.structuredContent
-        try:
-            payload = json.loads(text) if text else {}
-        except json.JSONDecodeError as exc:
-            raise DriverError(f"{tool}: the driver returned no JSON object: {text[:200]!r}") from exc
+            payload = dict(result.structuredContent)
+        else:
+            try:
+                payload = json.loads(text) if text else {}
+            except json.JSONDecodeError as exc:
+                raise DriverError(f"{tool}: the driver returned no JSON object: {text[:200]!r}") from exc
         if not isinstance(payload, dict):
             raise DriverError(f"{tool}: the driver returned no JSON object: {text[:200]!r}")
+        images = [{"data": p.data, "media_type": p.mimeType} for p in result.content if isinstance(p, ImageContent)]
+        if images:
+            payload["_images"] = images
         return payload
 
     async def launch_app(self, app_name: str, window_title: str = "") -> None:
@@ -199,14 +216,14 @@ class CuaDriver:
         owner = str(window.get("app_name") or app_name) if pinned is not None else app_name
         return Window(int(window["pid"]), int(window["window_id"]), owner, str(window.get("title") or ""))
 
-    async def window_state(self, window: Window) -> Snapshot:
+    async def window_state(self, window: Window, *, screenshot: bool = False) -> Snapshot:
         state = await self.call(
             "get_window_state",
             pid=window.pid,
             window_id=window.window_id,
             session=self._label,
             include_accessibility_tree=True,
-            include_screenshot=False,
+            include_screenshot=screenshot,
         )
         raw_elements = state.get("elements")
         if str(state.get("degraded_reason", "")).startswith("ax_window_unresolved"):
@@ -215,7 +232,24 @@ class CuaDriver:
             raise DriverError(f"get_window_state: no elements in the snapshot ({state.get('degradation')!r})")
         elements = tuple(_element(raw, tree=str(state.get("tree_markdown") or "")) for raw in raw_elements)
         snapshot_id = state.get("snapshot_id")
-        return Snapshot(window, str(snapshot_id) if snapshot_id else None, elements, state)
+        capture = None
+        if screenshot:
+            images = state.pop("_images", [])
+            width, height = state.get("screenshot_width"), state.get("screenshot_height")
+            if (
+                not state.get("screenshot_frame_valid")
+                or not state.get("capture_id")
+                or len(images) != 1
+                or not isinstance(width, int)
+                or not isinstance(height, int)
+                or width <= 0
+                or height <= 0
+            ):
+                raise DriverError("get_window_state: no valid screenshot capture")
+            capture = Capture(
+                str(state["capture_id"]), Image.from_base64(images[0]["data"], images[0]["media_type"]), width, height
+            )
+        return Snapshot(window, str(snapshot_id) if snapshot_id else None, elements, state, capture)
 
     async def click(self, window: Window, token: str) -> Json:
         """Click a snapshot-bound element (background by default); a refused action is an error."""
@@ -249,6 +283,23 @@ class CuaDriver:
         result = await self.call(tool, **args)
         if result.get("effect") == "refused":
             raise DriverError(f"{tool}: refused ({result.get('escalation')!r})")
+        return result
+
+    async def click_at(self, window: Window, capture: Capture, x: float, y: float) -> Json:
+        """Click a point in the captured window; the driver rejects stale or mismatched captures."""
+        if not (math.isfinite(x) and math.isfinite(y) and 0 <= x < capture.width and 0 <= y < capture.height):
+            raise ValueError("pixel click outside capture bounds")
+        result = await self.call(
+            "click",
+            target=window.target,
+            capture_id=capture.capture_id,
+            x=x,
+            y=y,
+            delivery_mode="background",
+            session=self._label,
+        )
+        if result.get("effect") == "refused":
+            raise DriverError(f"click: refused ({result.get('escalation')!r})")
         return result
 
 

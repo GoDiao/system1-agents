@@ -6,6 +6,7 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any, Callable
 
+from s1a.decision_models.types import Image
 from s1a.desktop.driver import Driver, DriverError, Element, Snapshot, Window
 
 DONE = "done"
@@ -64,6 +65,8 @@ class WindowEnv:
         text: str = "",
         text_target: str = "",
         text_mode: str = "insert",
+        pixel_targets: dict[str, tuple[float, float]] | None = None,
+        screenshot: bool = False,
     ) -> None:
         self._driver = driver
         self._app_name = app_name
@@ -79,6 +82,8 @@ class WindowEnv:
         self._text_mode = text_mode
         self._verified_value: str | None = None
         self._text_field: tuple[int, int, str, str] | None = None
+        self._pixel_targets = dict(pixel_targets or {})
+        self._screenshot = screenshot or bool(self._pixel_targets)
         self._window: Window | None = None
         self._snapshot: Snapshot | None = None
         self._keys: dict[str, Element] = {}
@@ -113,7 +118,13 @@ class WindowEnv:
 
     async def _refresh(self) -> None:
         assert self._window is not None
-        self._snapshot = await self._driver.window_state(self._window)
+        self._snapshot = (
+            await self._driver.window_state(self._window, screenshot=True)
+            if self._screenshot
+            else await self._driver.window_state(self._window)
+        )
+        if self._screenshot and self._snapshot.capture is None:
+            raise DriverError("visual observations require a valid screenshot capture")
         self._update_candidates()
 
     def _update_candidates(self) -> None:
@@ -171,7 +182,17 @@ class WindowEnv:
         offered = {key: f'{e.role} "{e.label}"' + (f" = {e.value}" if e.value else "") for key, e in self._keys.items()}
         for key, element in self._text_keys.items():
             offered[key] = f'Type the task text into {element.role} "{key.removeprefix("type:")}"'
+        offered.update(
+            {
+                f"pixel:{key}": f"Click {key}, at {x:.0%} across and {y:.0%} down the attached screenshot"
+                for key, (x, y) in self._pixel_targets.items()
+            }
+        )
         return {**offered, **RESERVED}
+
+    async def images(self) -> tuple[Image, ...]:
+        capture = self._require_snapshot().capture
+        return (capture.image,) if self._screenshot and capture is not None else ()
 
     async def step(self, key: str) -> None:
         if key == ABSTAIN:
@@ -182,12 +203,9 @@ class WindowEnv:
         if element is None and key not in await self.candidates():
             raise KeyError(key)
         if not self._execute:
-            self._planned = {
-                "key": key,
-                "role": element.role if element else None,
-                "label": element.label if element else None,
-                "token": element.token if element else None,
-            }
+            self._planned = {"key": key}
+            if element is not None:
+                self._planned.update(role=element.role, label=element.label, token=element.token)
             self._ended = "planned"
             return
         completion_before_action = self._done_when(self._require_snapshot())
@@ -222,6 +240,12 @@ class WindowEnv:
             self._presses.append(key)
             self._update_candidates()
             return
+        else:
+            x, y = self._pixel_targets[key.removeprefix("pixel:")]
+            capture = self._require_snapshot().capture
+            assert capture is not None
+            await self._driver.click_at(window, capture, x * capture.width, y * capture.height)
+            self._presses.append(key)
         await self._refresh()
         if not self._done_when(self._require_snapshot()):
             self._completion_stale = False

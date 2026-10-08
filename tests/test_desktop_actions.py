@@ -11,7 +11,8 @@ from unittest import IsolatedAsyncioTestCase
 from unittest.mock import AsyncMock, patch
 
 from s1a.agents import desktop
-from s1a.desktop.driver import DriverError, Element, Snapshot, Window
+from s1a.decision_models import Image
+from s1a.desktop.driver import Capture, DriverError, Element, Snapshot, Window
 from s1a.desktop.env import WindowEnv
 from s1a.run import started_runner
 from s1a.tool import loop, series
@@ -37,7 +38,7 @@ class FakeDocument:
         assert app_name == "Document"
         return self.window
 
-    async def window_state(self, window: Window) -> Snapshot:
+    async def window_state(self, window: Window, *, screenshot: bool = False) -> Snapshot:
         assert window == self.window
         self.snapshots += 1
         n = self.snapshots
@@ -50,6 +51,7 @@ class FakeDocument:
                 Element(3, "AXStaticText", "Status", self.status, None, ()),
             ),
             {},
+            capture=Capture(f"capture-{n}", Image(b"png"), 800, 600) if screenshot else None,
         )
 
     async def click(self, window: Window, token: str) -> dict[str, Any]:
@@ -64,6 +66,15 @@ class FakeDocument:
         self._check(window, token)
         self.actions.append(("type", token))
         self.text = text
+        return {"effect": "confirmed"}
+
+    async def click_at(self, window: Window, capture: Capture, x: float, y: float) -> dict[str, Any]:
+        self._check(window, capture.capture_id)
+        assert (x, y) in ((600, 300), (200, 300))
+        self.actions.append(("pixel", capture.capture_id))
+        if x == 600:
+            self.path.write_text(self.text, encoding="utf-8")
+            self.status = "Saved"
         return {"effect": "confirmed"}
 
     async def set_value(self, window: Window, token: str, text: str) -> dict[str, Any]:
@@ -375,13 +386,17 @@ class TestDocumentActions(IsolatedAsyncioTestCase):
                 ("Save,type:Body", 0.0, ""),
                 ("Save,type:Body,Other,Save", 1.0, "hello"),
                 ("Save,type:Body,Other", 0.0, ""),
+                ("pixel:Save,type:Body,pixel:Save", 1.0, "hello"),
+                ("pixel:Save,type:Body", 0.0, ""),
+                ("pixel:Save,type:Body,pixel:Other,pixel:Save", 1.0, "hello"),
+                ("pixel:Save,type:Body,pixel:Other", 0.0, ""),
             ):
                 with self.subTest(mode=mode, plan=plan):
                     self.fake = FakeDocument(self.path)
                     original = self.fake.window_state
 
-                    async def with_other_button(window: Window) -> Snapshot:
-                        snapshot = await original(window)
+                    async def with_other_button(window: Window, *, screenshot: bool = False) -> Snapshot:
+                        snapshot = await original(window, screenshot=screenshot)
                         other = Element(4, "AXButton", "Other", "", f"other-{self.fake.snapshots}", ("AXPress",))
                         return replace(snapshot, elements=(*snapshot.elements, other))
 
@@ -390,6 +405,11 @@ class TestDocumentActions(IsolatedAsyncioTestCase):
                         ["--model", "rule", "--rethink", "off", "--episodes", "1"]
                         + ["--app", "Document", "--goal", "write hello and save", "--expect", "Saved"]
                         + ["--text", "hello", "--text-mode", mode, "--plan", plan, "--execute"]
+                        + (
+                            ["--pixel-target", "Save=0.75,0.5", "--pixel-target", "Other=0.25,0.5"]
+                            if "pixel:" in plan
+                            else []
+                        )
                     )
                     with (
                         patch.object(loop, "WORKSPACE", Path(self.tmp.name) / "ws"),
@@ -403,7 +423,11 @@ class TestDocumentActions(IsolatedAsyncioTestCase):
                     self.assertEqual(self.fake.text, "hello")
                     self.assertEqual(self.path.read_text(encoding="utf-8"), saved)
                     actions = [
-                        ("type" if mode == "insert" else "replace") if action == "type:Body" else "click"
+                        ("type" if mode == "insert" else "replace")
+                        if action == "type:Body"
+                        else "pixel"
+                        if action.startswith("pixel:")
+                        else "click"
                         for action in plan.split(",")
                     ]
                     self.assertEqual([name for name, _ in self.fake.actions], actions)
