@@ -38,10 +38,13 @@ Show the expected output separately from the actual recorded outcome, with links
 
 ## Demo and validation
 
-Link a video or terminal recording using the [video guide](../CONTRIBUTING.md#agent-video-demos).
+For important PRs, link the required video of application/task + System1-Agents decision-model agent +
+System1-Omni inference in the same run, using the [video guide](../CONTRIBUTING.md#agent-video-demos) and its
+PR #35 example. A terminal video is valid for text tasks. Logs and rule controls complement the required clip.
 State source/engine/checkpoint revisions, exact commands, inputs, environment and local changes. Identify
 actual runs, scripted controls and replays, including cuts/speed and human intervention. Report missing media
-or execution evidence explicitly. Do not turn one successful episode into an accuracy or performance claim.
+or execution evidence as a review gap; keep the important PR draft until supplied or a maintainer accepts
+the documented exception. Do not turn one successful episode into an accuracy or performance claim.
 
 ## Troubleshooting and limits
 
