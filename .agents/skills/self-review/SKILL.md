@@ -72,28 +72,35 @@ demo is not a task-success rate. Mark missing metrics unmeasured, and remove or
 qualify unsupported claims rather than manufacturing a comparison.
 
 Use [CONTRIBUTING.md's video guide](../../../CONTRIBUTING.md#agent-video-demos)
-to prepare, record and attach an agent demo. For agent behavior changes, prefer a
-short real video (about 20–45 seconds); a terminal recording works for text agents
-and rails. Screenshots can support the clip or explain a recording gap. Show the
+to classify the PR and prepare, record and attach its demo. Important PRs require
+a video of the application/task, System1-Agents decision-model agent and actual
+System1-Omni inference in the same run. Check all three parts against the linked
+trace; a terminal recording works for text agents and rails. Screenshots and logs
+support the clip. Use PR #35's recording linked in the guide as the example and
+choose a relevant README application candidate from the guide. Show the
 relevant input, action sequence, and result, with failures or human intervention
-visible. Label cuts, replay speed,
-and elapsed timing honestly; link a fuller trace when a clip omits context. Do not
-stage screens or present a replay as a live run. A replay must identify the source
+visible. Label cuts, replay speed, and elapsed timing honestly; link a fuller
+trace when a clip omits context. Do not stage screens or present a replay as a
+live run. A replay must identify the source
 run/commit, workload, and speed; a historical or upstream model demo is not proof
 that the current agent integration works.
 
 Choose figures that answer the review question: workflow screenshots, a short
 action timeline, or task-success comparisons backed by the run records. There is
-no asset quota. Nonvisual, docs-only, and test-only changes may use test output or
-a concise explanation instead of video. If a relevant run cannot be made within
-the available authorization, resources, or budget, report the gap and its impact;
-do not turn a missing run into a pass or require a production-scale demonstration.
+no asset quota. Only the guide's minor docs/formatting/test-only exemption permits
+`N/A` with a reason; a nonvisual task still needs a terminal video when the PR is
+important. If a required run cannot be made within the available authorization,
+resources, or budget, report the gap and its impact; keep the important PR draft
+until the video is supplied or a maintainer accepts
+the documented exception. Do not turn a missing run into a pass or require a
+production-scale demonstration.
 
 ## PR demo/evidence section
 
 Prepare a **Demo / evidence** section for the PR containing what applies:
 
-- Task and observable result, or `N/A` with a concrete reason.
+- Required application + agents + Omni video and trace, or the documented exemption/blocker.
+- Task and observable result, or `N/A` for an exempt change with a concrete reason.
 - Reproduction command/fixture, configuration, and baseline/head commits.
 - Measured comparison and raw result links, including failures and limitations;
   distinguish personally run checks, author-reported results, and observed CI.
@@ -111,9 +118,9 @@ performance claims. Link durable, reviewer-accessible artifacts rather than loca
 paths. If rights or safe disclosure are unresolved, omit the asset and state why.
 
 Check System1-Omni's current model, modality and hardware support as described in
-the video guide. Try a supported serving path when the branch has a compatible
-client; otherwise record the missing integration or configuration. Pin both
-repositories and verify the actual worker/frontend from run evidence. Keep
+the video guide. Use a supported serving path for the required video when the
+branch has a compatible client; otherwise record the missing integration or
+configuration. Pin both repositories and verify the actual worker/frontend from run evidence. Keep
 agent-task evidence separate from serving/kernel measurements. Do not add an
 unrequested backend integration or run outside the authorized resources/budget
 merely to produce a demo.

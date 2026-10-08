@@ -129,6 +129,9 @@ The gates and the templates: [docs/skills.md](docs/skills.md#build-a-system-1-ag
 - `game2048`, `millionaire`, `blackjack`: games with a score per episode.
 - `injection_guard`: a rail that answers one question at a hook of a running agent and fails closed.
 
+These use cases are [application candidates](CONTRIBUTING.md#application-candidates) for the required
+application + System1-Agents + System1-Omni video in important PRs.
+
 Every agent runs on `jev`, `laya` or `cua`, and on the chat model for the comparison. Flags, run commands and
 extras: [docs/agents.md](docs/agents.md).
 
