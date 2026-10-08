@@ -132,8 +132,9 @@ class OmniJevModel(DecisionModel):
 
     async def _decide(self, observation: Observation, questions: dict[str, Question]) -> Reply:
         if not observation.images:
+            # a call failure, not a config error: the usual cause is a screenshot that failed to capture
             raise build_error(
-                StatusCode.MODEL_SERVICE_CONFIG_ERROR,
+                StatusCode.MODEL_CALL_FAILED,
                 error_msg="omnijev decides over a screenshot; this observation carries no image",
             )
         context = omnijev_context(observation)
@@ -171,6 +172,8 @@ class OmniJevModel(DecisionModel):
                     "https://github.com/tinnel123666888/OmniJev, and the omnijev extra: uv sync --extra omnijev"
                 ),
             )
+        # OmniJev ships as a repository, not a package: its clone stays first on sys.path for the process lifetime,
+        # so its top-level packages (mso, ...) shadow any installed ones of the same name
         sys.path.insert(0, str(Path(repo).resolve()))
         try:
             from mso.infer import MSO1

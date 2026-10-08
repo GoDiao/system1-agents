@@ -90,6 +90,7 @@ SCREENSHOT_JS = (
     'const png = await page.screenshot({type: "png", timeout: 15000}); '
     "return JSON.stringify({png: png.toString('base64')}); }"
 )
+SCREENSHOT_ATTEMPTS = 2  # a failed capture is tried once more before the step goes on without a picture
 _SCREENSHOT_RE = re.compile(r'png\\*"\s*:\s*\\*"([A-Za-z0-9+/=]+)')
 
 
@@ -416,18 +417,24 @@ class BrowserDecisionModel(Model):
         return snapshot, round((time.perf_counter() - started) * 1000)
 
     async def _screenshot(self) -> tuple[Image | None, int]:
-        """The viewport as PNG and the milliseconds the capture took. ``None`` when it fails: the step goes on
-        without the picture and the decision model says whether it can decide without one."""
+        """The viewport as PNG and the milliseconds the capture took, both attempts included. A failed capture is
+        tried once more, since one flaky capture would otherwise end an image-only model's episode. ``None`` when
+        both fail: the step goes on without the picture and the decision model says whether it can decide without one."""
         started = time.perf_counter()
         executor = getattr(self._runtime, "code_executor", None)
-        raw: Any = None
-        if callable(executor):
+        found = None
+        for _attempt in range(SCREENSHOT_ATTEMPTS):
+            if not callable(executor):
+                break
+            raw: Any = None
             try:
                 raw = await executor(SCREENSHOT_JS)
             except Exception:  # noqa: BLE001 - a failed capture degrades to a text-only observation
                 logger.warning("[BrowserDecisionModel] screenshot failed", exc_info=True)
+            found = _SCREENSHOT_RE.search(json.dumps(raw, default=str)) if raw is not None else None
+            if found is not None:
+                break
         ms = round((time.perf_counter() - started) * 1000)
-        found = _SCREENSHOT_RE.search(json.dumps(raw, default=str)) if raw is not None else None
         if found is None:
             logger.warning("[BrowserDecisionModel] no screenshot in the run-code result")
             return None, ms

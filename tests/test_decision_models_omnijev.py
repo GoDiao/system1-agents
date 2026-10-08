@@ -142,10 +142,10 @@ class TestMapping(IsolatedAsyncioTestCase):
 
 
 class TestFailures(IsolatedAsyncioTestCase):
-    async def test_an_observation_without_a_screenshot_is_a_config_error(self) -> None:
+    async def test_an_observation_without_a_screenshot_is_a_call_failure(self) -> None:
         with self.assertRaises(BaseError) as caught:
             await _model().decide_many(Observation({"page": "x"}), {"pick": contract.PICK})
-        self.assertEqual(caught.exception.status, StatusCode.MODEL_SERVICE_CONFIG_ERROR)
+        self.assertEqual(caught.exception.status, StatusCode.MODEL_CALL_FAILED)
         self.assertIn("screenshot", str(caught.exception))
 
     async def test_a_runtime_error_becomes_model_call_failed(self) -> None:

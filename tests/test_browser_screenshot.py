@@ -15,12 +15,13 @@ PNG = b"\x89PNG\r\n\x1a\n fake"
 ENCODED = base64.b64encode(PNG).decode()
 
 
-def _runtime(result: Any = None, error: Exception | None = None) -> SimpleNamespace:
+def _runtime(result: Any = None, error: Exception | None = None, failures: int | None = None) -> SimpleNamespace:
+    """``error`` is raised on every call, or on the first ``failures`` calls only."""
     calls: list[str] = []
 
     async def executor(code: str) -> Any:
         calls.append(code)
-        if error is not None:
+        if error is not None and (failures is None or len(calls) <= failures):
             raise error
         return result
 
@@ -41,8 +42,17 @@ class TestScreenshot(IsolatedAsyncioTestCase):
         self.assertGreaterEqual(ms, 0)
 
     async def test_a_failed_capture_is_no_image_not_an_error(self) -> None:
-        image, _ms = await _shot(_runtime(error=RuntimeError("page closed")))
+        runtime = _runtime(error=RuntimeError("page closed"))
+        image, _ms = await _shot(runtime)
         self.assertIsNone(image)
+        self.assertEqual(len(runtime.calls), 2)
+
+    async def test_one_failed_capture_is_retried_once(self) -> None:
+        payload = {"payload": {"result": json.dumps({"png": ENCODED})}}
+        runtime = _runtime(payload, error=TimeoutError("bringToFront"), failures=1)
+        image, _ms = await _shot(runtime)
+        self.assertEqual(image.data, PNG)
+        self.assertEqual(runtime.calls, [SCREENSHOT_JS, SCREENSHOT_JS])
 
     async def test_a_result_without_a_png_is_no_image(self) -> None:
         image, _ms = await _shot(_runtime({"payload": {"result": "{}"}}))
