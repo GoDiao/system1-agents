@@ -28,6 +28,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 ### Added
 
+- `--model clm`: CLM's `clm-serve` behind the decision-model interface, over its `/v1/systemone`. The engine owns
+  everything after a frozen Qwen3-8B encoder, so no torch and no cloud key are needed on this side. Offered
+  everywhere the other HTTP models are: `run`, `decide`, `probe`, rails, the browser front and the MCP server.
+  See [docs/clm.md](docs/clm.md) and the [ticket-router evidence](evals/ticket_router/CLM.md).
 - `.coderabbit.yaml` and the `review-pr` skill: CodeRabbit reviews every non-draft pull request except Dependabot's, forks
   included, once an owner installs the CodeRabbit GitHub App, against `.claude/skills/review-pr/SKILL.md` and the linked issues.
   Maintainers can run the same skill by hand.
