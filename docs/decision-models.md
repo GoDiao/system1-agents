@@ -98,6 +98,12 @@ real servers in `tests/data/served_laya/`. Nothing patches `httpx`.
 3. `tests/test_decision_models_<backend>.py` with `Test<Backend>Contract(DecisionModelContract, IsolatedAsyncioTestCase)`
    plus the backend's mapping tests; a fake for its SDK lives in that file.
 4. An optional extra in `pyproject.toml` and an env block in `.env.example` when it needs a dependency.
+5. For an in-process backend, time a cold `from_env()` in a fresh process and report the load time in the PR,
+   separately from warm inference and episode timing. Profile loads above 5 s. If the loader builds a model
+   from its config (`AutoModel.from_config` or a bare `nn.Module`) and then replaces every weight with a
+   checkpoint, it can skip random initialization with transformers' `no_init_weights`, but only if loading
+   fails on missing keys (`strict=True` or an equivalent check). Prefer fixing this in the model's package;
+   Laya added the skip in 0.3.9. This step does not apply to backends served over HTTP.
 
 ### Laya browser input shaping
 

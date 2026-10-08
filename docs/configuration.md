@@ -38,6 +38,7 @@ Variables can be exported in your shell or placed in a `.env` file at the root o
 | `CLM_MODEL` | `clm` model | `clm-latest` | Name of the served model to ask: `clm-latest`, or `clm-raw` for the ablation that scores in the raw encoder space with no projection head. |
 | `CLM_API_KEY` | `clm` model | *(unset)* | Bearer token, when `clm-serve` was started with one. |
 | `CLM_TIMEOUT_S` | `clm` model | `30` | Deadline per decision in seconds, the one refused-connection retry included. A finite number above 0: `nan`, `inf` and `0` are configuration errors. Longer than the other served models because a cold candidate set is one 8B forward pass. |
+| `LAYA_MPS_AMP_MIN_ROWS` | `laya` model | *(unset: fp32)* | Laya's own variable: on MPS, requests with at least this many questions run in fp16. Unset, `--model laya` keeps every request in fp32, as on CPU; `5` is Laya's default. fp16 moves the probabilities and can flip a close decision. A value that is not a whole number of at least 1 is a configuration error. |
 | `LAYA_SERVED_URL` | `laya-served` model | *(unset, required)* | Base URL of a served Laya: the system1-omni worker (`http://127.0.0.1:8000`), its `omni-jev` frontend (`:8080`) or plain laya-serve. |
 | `LAYA_SERVED_MODEL` | `laya-served` model | `english` | Name of the served checkpoint to ask: `english`, `multilingual` or `typed-decisions`. A name the server does not know raises instead of being routed by language. |
 | `LAYA_SERVED_API_KEY` | `laya-served` model | *(unset)* | Bearer token, the server's `LAYA_API_KEY` when it sets one. |
