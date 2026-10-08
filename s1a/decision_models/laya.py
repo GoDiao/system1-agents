@@ -231,13 +231,15 @@ class LayaModel(DecisionModel):
         mps_rows = os.getenv("LAYA_MPS_AMP_MIN_ROWS")
         if mps_rows:
             try:
-                int(mps_rows)
-            except ValueError as exc:  # Laya would fall back to its default of 5 and run those requests in fp16
+                rows = int(mps_rows)
+            except ValueError:
+                rows = 0  # Laya would fall back to its default of 5 and run those requests in fp16
+            if rows < 1:  # and Laya raises anything below 1 to 1: fp16 from a single question
                 raise build_error(
                     StatusCode.MODEL_SERVICE_CONFIG_ERROR,
-                    cause=exc,
-                    error_msg=f"LAYA_MPS_AMP_MIN_ROWS must be a whole number, not {mps_rows!r}; unset it to keep fp32",
-                ) from exc
+                    error_msg=f"LAYA_MPS_AMP_MIN_ROWS must be a whole number of at least 1, not {mps_rows!r}; "
+                    "unset it to keep fp32",
+                )
         model = os.getenv("LAYA_MODEL") or LAYA_DEFAULT_MODEL
         subfolder = os.getenv("LAYA_SUBFOLDER") or None
         agent = laya.load(model, device=os.getenv("LAYA_DEVICE") or None, subfolder=subfolder)
