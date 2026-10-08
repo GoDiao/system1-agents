@@ -28,6 +28,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 - Verified desktop text input through `--text`, `--text-target`, and `--text-mode` (insert or replace).
   Completion requires confirmed input and fresh field readback; `--verify-file` also requires matching contents
   in a freshly written file. `--window-title` selects an exact window and `--app-path` launches a macOS app bundle.
+- `.coderabbit.yaml` and the `review-pr` skill: CodeRabbit reviews every non-draft pull request except Dependabot's, forks
+  included, once an owner installs the CodeRabbit GitHub App, against `.claude/skills/review-pr/SKILL.md` and the linked issues.
+  Maintainers can run the same skill by hand.
 - Agent use-case recipe index, authoring template and contributor skill, with a runnable ticket-routing
   example and independent fixture verification.
 - Contributor guidance for recording and attaching agent video demos, identifying the inference engine and
@@ -64,6 +67,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 - Desktop click candidates omit disabled or unlabelled controls and application menu items, including in
   click-only tasks.
+- Backend contribution guidance requires cold in-process model load timing, profiling above 5 s, and
+  complete checkpoint coverage before skipping random weight initialization.
+- `--model laya` loads in about 3 s instead of about 35 s: the encoder is built with transformers' weight init
+  off, since the checkpoint replaces every weight. Weights and answers are unchanged.
 - Important agent/inference PRs require an application + System1-Agents + System1-Omni video, following
   PR #35's worked example. Contributor skills, recipes and the PR template retain missing demos as review gaps.
 - `--model laya` no longer draws the encoder's random weights before the checkpoint replaces them, which took most
