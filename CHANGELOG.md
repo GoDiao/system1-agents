@@ -48,6 +48,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
   calls remain counted, and incomplete token usage is reported as unknown cost.
 - Small repeatable browser and native Windows recovery on/off fixtures, with independent completion checks,
   bounded failure cases and paired reports. These use scripted models to verify mechanisms, not model accuracy.
+- `.coderabbit.yaml` and the `review-pr` skill: CodeRabbit reviews every non-draft pull request except Dependabot's, forks
+  included, once an owner installs the CodeRabbit GitHub App, against `.claude/skills/review-pr/SKILL.md` and the linked issues.
+  Maintainers can run the same skill by hand.
 - Agent use-case recipe index, authoring template and contributor skill, with a runnable ticket-routing
   example and independent fixture verification.
 - Contributor guidance for recording and attaching agent video demos, identifying the inference engine and

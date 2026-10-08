@@ -219,6 +219,15 @@ Video and raw trace/results: ...
 Reuse permission and attribution: ...
 ```
 
+## AI review
+
+CodeRabbit reviews each non-draft pull request when it opens and again on every push (Dependabot's excepted), and checks
+the change against the issues it closes (`Closes #N`). It needs the CodeRabbit GitHub App installed on the repository by
+an owner; reviews of public repositories are free. `.coderabbit.yaml` holds its settings and the per-path focus, and it
+reads `.claude/skills/review-pr/SKILL.md` and this file as the review criteria, so the criteria live in one place.
+CodeRabbit cannot run tests; a maintainer verifies every finding. To review by hand with the same criteria, ask Claude
+Code to use the `review-pr` skill on a pull request or a branch.
+
 ## Extras
 
 Everything outside `openjiuwen` is an extra. An agent whose extra is missing says so on stderr and exits 1.
