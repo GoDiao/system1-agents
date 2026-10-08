@@ -1,9 +1,14 @@
 """Record real clm-serve responses as fixtures, the way tests/data/served_laya/ was recorded.
 
-    python3 record_fixtures.py http://127.0.0.1:8091
+    python3 record.py http://127.0.0.1:8091                  # every fixture
+    python3 record.py http://127.0.0.1:8091 browser_target   # only this one
 
 Writes tests/data/clm/<name>.json as {"status", "content_type", "body"} (or "text" for a body that is not JSON),
 so the tests replay what a server actually sent rather than what we imagine it sends.
+
+Name the fixtures you mean when the encoder behind the URL is not the trained one. ``choice`` and ``noul`` carry
+the trained encoder's numbers, which the tests assert; recording everything against ``recipe/clm/native``'s CPU
+stub replaces them with the stub's, and nothing about the file says which it holds.
 """
 
 from __future__ import annotations
@@ -33,6 +38,27 @@ NOUL = {
     "questions": {"check": {"type": "noul", "instructions": "Does the customer ask for a refund?"}},
 }
 BAD = {"model": "clm-latest", "state": {}, "questions": {"pick": {"type": "choice", "criteria": {}}}}
+# What the browser front asks. s1a/browser/action_space.py builds `<op>_target` criteria as objects --
+# {element, current_value, option?, role/checked/selected/expanded/region?} -- so strings, empty strings and bools
+# all reach clm-serve. Recorded to pin that it takes them (a later maintainer asked; it does, 200 not 422).
+#
+# NOTE: recorded against a local clm-serve whose encoder is recipe/clm/native's CPU stub, so the numbers below are
+# the stub's. Only the status and the answer's shape are evidence here; tests must not assert these probabilities.
+BROWSER = {
+    "model": "clm-latest",
+    "state": {"url": "https://example.test/checkout", "title": "Checkout"},
+    "questions": {
+        "click_target": {
+            "type": "choice",
+            "instructions": "Pick the element to click.",
+            "criteria": {
+                "e1": {"element": "[e1] Sign in", "current_value": "", "role": "button"},
+                "e2": {"element": "[e2] Apply coupon", "current_value": "", "role": "button"},
+                "e3": {"element": "[e3] Gift wrap", "current_value": "", "role": "checkbox", "checked": True},
+            },
+        }
+    },
+}
 
 
 def record(url: str, name: str, body: dict | None, method: str = "POST", path: str = "/v1/systemone") -> None:
@@ -58,11 +84,21 @@ def record(url: str, name: str, body: dict | None, method: str = "POST", path: s
 
 def main() -> None:
     url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8091"
+    wanted = set(sys.argv[2:])
     OUT.mkdir(parents=True, exist_ok=True)
-    record(url, "models", None, method="GET", path="/v1/models")
-    record(url, "choice", CHOICE)
-    record(url, "noul", NOUL)
-    record(url, "bad_question", BAD)
+    for name, body, kwargs in (
+        ("models", None, {"method": "GET", "path": "/v1/models"}),
+        ("choice", CHOICE, {}),
+        ("noul", NOUL, {}),
+        ("bad_question", BAD, {}),
+        ("browser_target", BROWSER, {}),
+    ):
+        if wanted and name not in wanted:
+            continue
+        record(url, name, body, **kwargs)
+    unknown = wanted - {"models", "choice", "noul", "bad_question", "browser_target"}
+    if unknown:
+        raise SystemExit(f"no such fixture: {', '.join(sorted(unknown))}")
 
 
 if __name__ == "__main__":

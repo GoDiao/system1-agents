@@ -54,7 +54,11 @@ Two things differ from the Jev-shaped body, and both follow from how CLM reads a
   dinosaur."`). Jev's `{goal, operation, rules}` object is not what this model reads, so the parts are joined into
   one string.
 - **A choice's `criteria` is `{key: description}`**, and the action head embeds each description as the candidate's
-  own text with nothing prefixed.
+  own text with nothing prefixed. A description need not be a string: `to_text` renders an object as `field: value`
+  lines — top-level fields separated by a blank line, nested ones indented — and `null` as nothing. The browser
+  front's `<op>_target` heads describe each element as `{element, current_value, role, checked, ...}`
+  (`s1a/browser/action_space.py`), so those fields are what the head embeds;
+  `tests/data/clm/browser_target.json` records one such request and the answer `clm-serve` gave it.
 
 ## What it supports, and what it does not
 
@@ -62,8 +66,11 @@ Choice and noul, like the other served backends; a `score` question is not offer
 engine's decision is stable to six decimals for the same request, so the model is `deterministic` and an unusable
 answer is not re-asked — a second call would pay the encoder again for the same distribution. Every decision records
 the URL, the `X-Request-Id` it sent and what `/health` reported — the names served, whether the engine has its
-encoder, and the device its vector cache sits on; the agent fronts call `warm()` for that read,
-and `decide` and `probe` make it once on their first decision instead.
+encoder, the device its vector cache sits on, and `read_at`, when that one reading was taken, because a frontend
+restarted mid-run is not noticed; the agent fronts call `warm()` for that read, and `decide` and `probe` make it once
+on their first decision instead. `server_timing` carries the response's `Server-Timing` plus the engine's own
+`X-CLM-Latency-Ms` under `clm`, which is the number that separates the engine's scoring time from the round trip
+`Reply.latency_ms` measures.
 
 The engine keeps a candidate-vector cache across requests, which is the feature that makes it interesting and also
 the reason `usage.input_tokens` counts only encoder cache misses: the field moves with cache state rather than with

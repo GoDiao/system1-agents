@@ -21,6 +21,7 @@ import os
 import time
 import uuid
 from collections.abc import Callable
+from datetime import datetime, timezone
 
 import httpx
 
@@ -28,6 +29,7 @@ from openjiuwen.core.common.exception.codes import StatusCode
 from openjiuwen.core.common.exception.errors import BaseError, build_error
 
 from s1a.decision_models.base import DecisionModel
+from s1a.decision_models.served import parse_server_timing
 from s1a.decision_models.types import (
     ChoiceQuestion,
     Json,
@@ -77,6 +79,24 @@ def clm_question(question: Question) -> Json:
                 body["criteria"] = dict(question.criteria)
             return body
     raise TypeError(f"not a question: {question!r}")
+
+
+def server_timing(lower: dict[str, str]) -> dict[str, float]:
+    """The response's ``Server-Timing``, plus the engine's own ``X-CLM-Latency-Ms`` under ``clm``.
+
+    That second header is the one worth keeping: it separates the engine's scoring time from the round trip
+    ``Reply.latency_ms`` measures, which is what tells a slow engine from a slow connection. It is folded in here
+    rather than kept beside it because ``server_timing`` is the provenance key for durations -- a separate key
+    would sit in ``raw`` and never reach ``Decision.provenance``.
+    """
+    timings = parse_server_timing(lower.get("server-timing"))
+    engine_ms = lower.get("x-clm-latency-ms")
+    if engine_ms is not None:
+        try:
+            timings["clm"] = float(engine_ms)
+        except ValueError:  # a header that is not a number is not worth failing a decision over
+            pass
+    return timings
 
 
 class ClmClient:
@@ -208,6 +228,7 @@ class ClmModel(DecisionModel):
         self._client = client
         self._model = model
         self._served: Json = {}
+        self._served_at: str | None = None
         self._warmed = False
 
     @property
@@ -216,11 +237,17 @@ class ClmModel(DecisionModel):
 
     async def warm(self) -> None:
         self._served = await self._client.warm()
+        self._served_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
         self._warmed = True
 
     def _served_by(self) -> Json:
         """Who answered, from the ``/health`` reading: the URL asked, the names served, whether the engine has its
-        encoder, and the device its vector cache sits on. What the guidance means by worker/frontend provenance."""
+        encoder, and the device its vector cache sits on. What the guidance means by worker/frontend provenance.
+
+        The reading is taken once per model and then kept, so ``read_at`` says how old it is: what is behind the URL
+        can be restarted mid-run, and this record would not notice. The sibling backend caches per decision and
+        keeps the previous reading when a fresh one fails, which is why it logs that; here one read is the design.
+        """
         cache = self._served.get("cache")
         return {
             "url": self._client.url,
@@ -228,6 +255,7 @@ class ClmModel(DecisionModel):
             "embedder": self._served.get("embedder"),
             "device": cache.get("device") if isinstance(cache, dict) else None,
             "source": "health",
+            "read_at": self._served_at,
         }
 
     async def _warm_once(self) -> None:
@@ -261,7 +289,7 @@ class ClmModel(DecisionModel):
                 "url": self._client.url,
                 "request_id": request_id,
                 "served_by": self._served_by(),
-                "clm_latency_ms": lower.get("x-clm-latency-ms"),
+                "server_timing": server_timing(lower),
             },
         )
 

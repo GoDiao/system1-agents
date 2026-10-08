@@ -1,5 +1,5 @@
 {"version": 2, "width": 100, "height": 26, "env": {"TERM": "xterm-256color"}}
-[0.0, "o", "$ bash /Users/xiaoyu/Documents/casual/work/clm-omni-demo.sh\r\n"]
+[0.0, "o", "$ bash evals/ticket_router/demo.sh\r\n"]
 [0.097086958, "o", "# application/task   ticket routing: 30 labelled tickets, five queues\r\n"]
 [0.097138333, "o", "# agents             s1a run ticket_router --model clm\r\n"]
 [0.09713924999999998, "o", "# System1-Omni       omni-jev :8080  ->  clm-serve :8091  ->  Qwen3-8B on one RTX 4090\r\n"]
@@ -48,7 +48,7 @@
 [8.493846167000001, "o", "   28 human                  conf=0.97    79 ms\r\n"]
 [8.493846458, "o", "   29 human                  conf=0.95    72 ms\r\n"]
 [8.493846708000001, "o", "   30 human                  conf=0.96    92 ms\r\n"]
-[8.493852833, "o", "{\"env\": \"ticket_router\", \"policy\": \"clm\", \"episodes\": 1, \"scored\": 1, \"mean_score\": 6.0, \"mean_score_ci95\": [6.0, 6.0], \"wins\": 1, \"losses\": 0, \"mean_steps\": 30, \"mean_elapsed_s\": 3.1, \"decisions\": 30, \"median_decision_ms\": 88, \"chat_calls\": 0, \"jev_input_tokens\": 0, \"chat_input_tokens\": 0, \"chat_output_tokens\": 0, \"chat_cache_tokens\": 0, \"invalid_keys\": 0, \"cost_usd\": 0.0, \"rethinks\": 0, \"errors\": 0, \"total_s\": 3.1, \"job_dir\": \"/Users/xiaoyu/Documents/casual/work/s1a-clm/evals/showcase/ticket_router/2026-10-07__23-28-20-567120__clm\"}\r\n"]
+[8.493852833, "o", "{\"env\": \"ticket_router\", \"policy\": \"clm\", \"episodes\": 1, \"scored\": 1, \"mean_score\": 6.0, \"mean_score_ci95\": [6.0, 6.0], \"wins\": 1, \"losses\": 0, \"mean_steps\": 30, \"mean_elapsed_s\": 3.1, \"decisions\": 30, \"median_decision_ms\": 88, \"chat_calls\": 0, \"jev_input_tokens\": 0, \"chat_input_tokens\": 0, \"chat_output_tokens\": 0, \"chat_cache_tokens\": 0, \"invalid_keys\": 0, \"cost_usd\": 0.0, \"rethinks\": 0, \"errors\": 0, \"total_s\": 3.1, \"job_dir\": \"evals/showcase/ticket_router/2026-10-07__23-28-20-567120__clm\"}\r\n"]
 [8.496057958000002, "o", "\r\n"]
 [8.496069125, "o", "$ the identity recorded in every tick, from the run's own episode.json\r\n"]
 [8.573850083, "o", "   source clm | model clm-latest | ms 83\r\n"]

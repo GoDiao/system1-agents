@@ -11,6 +11,7 @@ import ast
 import json
 import os
 import typing
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from unittest import IsolatedAsyncioTestCase, TestCase
@@ -35,6 +36,15 @@ URL = "http://clm.test"
 OBSERVATION = Observation({"ticket": "I was charged twice. Please refund the duplicate."})
 PICK = ChoiceQuestion({"billing": "Charges and refunds", "technical": "Software problems"}, rules="route it")
 CHECK = NoulQuestion("Does the customer ask for a refund?")
+# What `s1a/browser/action_space.py` builds for a `<op>_target` head: object criteria, strings and bools alike.
+BROWSER_PICK = ChoiceQuestion(
+    {
+        "e1": {"element": "[e1] Sign in", "current_value": "", "role": "button"},
+        "e2": {"element": "[e2] Apply coupon", "current_value": "", "role": "button"},
+        "e3": {"element": "[e3] Gift wrap", "current_value": "", "role": "checkbox", "checked": True},
+    },
+    goal="Pick the element to click.",
+)
 
 
 def clm_answer(question: dict[str, Any]) -> dict[str, Any]:
@@ -214,6 +224,27 @@ class TestClmModel(IsolatedAsyncioTestCase):
         decision = await server.model().decide_many(OBSERVATION, {"pick": PICK})
         self.assertEqual(decision.choice("pick").key, "billing")
         self.assertIsNone(decision.provenance["served_by"]["models"])
+        self.assertIsNone(decision.provenance["served_by"]["read_at"])  # nothing was read
+
+    async def test_the_served_by_reading_says_when_it_was_taken(self) -> None:
+        """One read is kept for the model's lifetime, so the record has to date itself."""
+        decision = await Server().model().decide_many(OBSERVATION, {"pick": PICK})
+        read_at = decision.provenance["served_by"]["read_at"]
+        self.assertIsNotNone(read_at)
+        age = datetime.now(timezone.utc) - datetime.fromisoformat(read_at)
+        self.assertLess(abs(age.total_seconds()), 60)
+
+    async def test_the_engine_s_own_latency_surfaces_as_server_timing(self) -> None:
+        """`X-CLM-Latency-Ms` is the engine's scoring time; `server_timing` is the provenance key for durations."""
+        server = Server(script=[ok(ANSWER, {"X-CLM-Latency-Ms": "41.5", "Server-Timing": "queue;dur=1.5"})])
+        decision = await server.model().decide_many(OBSERVATION, {"pick": PICK})
+        self.assertEqual(decision.provenance["server_timing"], {"queue": 1.5, "clm": 41.5})
+
+    async def test_an_engine_latency_that_is_not_a_number_is_dropped(self) -> None:
+        server = Server(script=[ok(ANSWER, {"X-CLM-Latency-Ms": "later"})])
+        decision = await server.model().decide_many(OBSERVATION, {"pick": PICK})
+        self.assertEqual(decision.provenance["server_timing"], {})
+        self.assertEqual(decision.choice("pick").key, "billing")  # a bad header is not a failed decision
 
     async def test_a_retry_happens_once_on_a_refused_connection(self) -> None:
         server = Server(
@@ -332,6 +363,21 @@ class TestRecordedResponses(IsolatedAsyncioTestCase):
         entry = recorded("models")
         served = await Server(models=entry["body"]).model()._client.warm()
         self.assertEqual([m["name"] for m in served["models"]], ["clm-latest", "clm-raw"])
+
+    async def test_a_recorded_browser_target_answer_is_read(self) -> None:
+        """The browser front's `<op>_target` heads send object criteria, not `{key: description}`. clm-serve takes
+        them (recorded: 200, not 422) and answers over the keys it was given. Only the shape is asserted -- the
+        fixture was recorded against a stub encoder, so its numbers are the stub's."""
+        server = self.server("browser_target")
+        decision = await server.model().decide_many(
+            Observation({"url": "https://example.test/checkout"}), {"click_target": BROWSER_PICK}
+        )
+        choice = decision.choice("click_target")
+        self.assertIn(choice.key, BROWSER_PICK.options)
+        self.assertAlmostEqual(sum(choice.probabilities.values()), 1.0, delta=0.02)
+        sent = json.loads(server.requests[-1].content)["questions"]["click_target"]["criteria"]
+        self.assertEqual(sent["e3"], BROWSER_PICK.options["e3"])  # sent as the object it was built as
+        self.assertIs(sent["e3"]["checked"], True)
 
 
 class TestWhatTheLoopSends(IsolatedAsyncioTestCase):
