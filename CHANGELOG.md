@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 ### Added
 
+- Optional local Cua-S1 4B inference through the `cua-four-b` extra and `CUA_S1_VARIANT=4b`, supporting text and
+  multimodal input. Desktop `--pixel-target` offers named screenshot points; clicks remain bound to the observed
+  window and capture.
 - Snake recipe and game client: `evals/snake` vendors the laya-mlx snake CLI
   (Apache-2.0) with single-game paced recording and a 16-game multigrid mode
   against any `/v1/systemone` backend; `recipes/snake` documents setup,
