@@ -132,7 +132,8 @@ The topology, which the caption on the pull request states in full: `s1a` -> `om
 `:8080`) -> `clm-serve` (upstream CLM's own server, `:8091`) -> Qwen3-8B on one RTX 4090. **`omni-clm`, the engine
 this project tracks, does not serve HTTP** — `src/models/clm/README.md` says the frontend owns that socket — so the
 engine behind `omni-jev` here is upstream's, not this repository's. That is the same gap
-`docs/supported-models.md` describes, and it is why the three tickets in this clip all route to `human`.
+[`docs/supported-models.md`](https://github.com/ThinkFlowLab/system1-omni/blob/main/docs/supported-models.md)
+describes, and it is why the three tickets in this clip all route to `human`.
 
 Nothing in the clip is typed, reordered or invented: the frames are drawn from the output as it arrived. The same
 run as an asciicast is `ticket-router-clm.cast`. A demo illustrates one run; the probe's verdict and the tables

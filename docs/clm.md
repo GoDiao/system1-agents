@@ -72,7 +72,7 @@ reason.
 
 ## What it measured
 
-On [ticket routing](../../evals/ticket_router/CLM.md): **18/90 = 20%** with the tool loop's framing, against 51/90
+On [ticket routing](../evals/ticket_router/CLM.md): **18/90 = 20%** with the tool loop's framing, against 51/90
 for the keyword baseline, 63/90 for Laya and 17/90 for uniform random — and every one of the three seeds gave
 exactly 6, because CLM answers `human` for all thirty tickets. `s1a probe evals/ticket_router/probe.jsonl --model
 clm` returns `4/12 (33%)`, **`not a decision-model task`**, against the repository's own 80% threshold, where the
