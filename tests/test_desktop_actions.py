@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import tempfile
 from dataclasses import replace
 from pathlib import Path
@@ -481,6 +482,8 @@ class TestDocumentActions(IsolatedAsyncioTestCase):
 
     async def test_existing_matching_file_does_not_count_as_a_new_save(self) -> None:
         self.path.write_text("hello", encoding="utf-8")
+        # Model a previous run without requiring two writes to advance the filesystem clock.
+        os.utime(self.path, (1_000_000_000, 1_000_000_000))
         args = series.parser(desktop.SPEC).parse_args(
             [
                 "--model",
@@ -509,5 +512,6 @@ class TestDocumentActions(IsolatedAsyncioTestCase):
         await env._refresh()
         self.assertFalse(env.done)
         await env.step("type:Body")
+        self.assertFalse(env.done)
         await env.step("click:Save")
         self.assertTrue(env.done)
