@@ -62,6 +62,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 ### Changed
 
+- Backend contribution guidance requires cold in-process model load timing, profiling above 5 s, and
+  complete checkpoint coverage before skipping random weight initialization.
+- `--model laya` loads in about 3 s instead of about 35 s: the encoder is built with transformers' weight init
+  off, since the checkpoint replaces every weight. Weights and answers are unchanged.
 - Important agent/inference PRs require an application + System1-Agents + System1-Omni video, following
   PR #35's worked example. Contributor skills, recipes and the PR template retain missing demos as review gaps.
 - `--model laya` no longer draws the encoder's random weights before the checkpoint replaces them, which took most
