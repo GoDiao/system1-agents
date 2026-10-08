@@ -66,8 +66,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
   click-only tasks.
 - Important agent/inference PRs require an application + System1-Agents + System1-Omni video, following
   PR #35's worked example. Contributor skills, recipes and the PR template retain missing demos as review gaps.
-- `--model laya` loads in about 3 s instead of about 35 s: the encoder is built with transformers' weight init
-  off, since the checkpoint replaces every weight. Weights and answers are unchanged.
+- `--model laya` no longer draws the encoder's random weights before the checkpoint replaces them, which took most
+  of a load of about 40 s on CPU. The `laya` extra now needs laya 0.3.9 or later, which skips the draw itself,
+  and the lock moves from 0.3.5 to 0.3.20. Weights and answers are unchanged: laya 0.3.10 and later run a request
+  of five or more questions in fp16 on MPS, which moves the answers, so `--model laya` keeps such requests in fp32
+  unless `LAYA_MPS_AMP_MIN_ROWS` is set.
 - `--model` picks the model on every agent, on `decide` and on `probe`: `jev`, `laya`, `cua`, `llm`, `random` or
   `rule`. The results table's column, the replay page's badge data and a browser run's `answer.json` name it
   `model` as well; the replay still reads the `slot` key of records written by 0.1.0.
