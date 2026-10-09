@@ -2306,7 +2306,7 @@ wheels = [
 
 [[package]]
 name = "laya"
-version = "0.3.5"
+version = "0.3.20"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "huggingface-hub" },
@@ -2316,9 +2316,9 @@ dependencies = [
     { name = "torch" },
     { name = "transformers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f7/f1/12459ecda42123f93da36f9f1e0c9b7b9191648fa68e7e0b09d292cc6dce/laya-0.3.5.tar.gz", hash = "sha256:5e8a4c2b38dbddc0febe7443f26f74fd9d7571fb172648b1481830c667d59219", size = 69616, upload-time = "2026-09-21T18:20:10.029Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/31/82/0964e13e1a67ae4ac2824c3115470d31cd149a065d971a5dec6e4049ca23/laya-0.3.20.tar.gz", hash = "sha256:692de1346cf0239bb7bbcffdf0cfbd538c24834f8bc61e9b60f4106465c033c9", size = 275028, upload-time = "2026-09-24T05:41:07.653Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ec/1c/a9903d5c3c51579f45f9656f733c8a2d985b16a3cb7594edf45369d1f995/laya-0.3.5-py3-none-any.whl", hash = "sha256:4c57f64cbaf893bb5c7b4affddc2bf21a819f55df51941689f11868583be2903", size = 41658, upload-time = "2026-09-21T18:20:08.641Z" },
+    { url = "https://files.pythonhosted.org/packages/34/0c/80982f9ad6f52ca9cb146cfc00fac79e7b7f4388f00f4197575a3170be48/laya-0.3.20-py3-none-any.whl", hash = "sha256:6039e802fa5effb8dd492061cd7ad39a43087beadc4a4fa4a649614e77eb83d4", size = 118520, upload-time = "2026-09-24T05:41:06.273Z" },
 ]
 
 [[package]]
@@ -3629,7 +3629,7 @@ wheels = [
 
 [[package]]
 name = "peft"
-version = "0.21.2"
+version = "0.21.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "accelerate" },
@@ -3644,9 +3644,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "transformers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/80/af/2e08abf1cd3b8792a02f5116808f2398c2f77ecdff801ced2ce16007a6f9/peft-0.21.2.tar.gz", hash = "sha256:b803ccfb3f3f316004d850284306687833a2235ea278fb56abc856203456142e", size = 983614, upload-time = "2026-10-01T10:26:36.129Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4f/91/56cc2b1b6824f5a4026750274240f26cd23465fb1a29cd14772d555433f2/peft-0.21.0.tar.gz", hash = "sha256:17f2b5a264439f4cd983c02e95954f2e948e3bcb85f75895ee307f94a55fd28f", size = 978334, upload-time = "2026-09-15T13:34:02.583Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/70/0b/59441cdbfdd342ed03c08af90a2fe16173f0cd48ab219f523b39ca059a79/peft-0.21.2-py3-none-any.whl", hash = "sha256:106ab6077ff72c54d21577f9af5970e34bac7582cb14209f7b2b511e322a4eae", size = 835427, upload-time = "2026-10-01T10:26:34.085Z" },
+    { url = "https://files.pythonhosted.org/packages/13/f0/29c37002f5ef5cb5be54890114d5c8f726f0cb5072a8ba0880758c912bfd/peft-0.21.0-py3-none-any.whl", hash = "sha256:b64eb75fd9dece7401c70e675b8d9de024993b70483691b41c62876f0c7809b7", size = 832883, upload-time = "2026-09-15T13:33:59.775Z" },
 ]
 
 [[package]]
@@ -5248,6 +5248,14 @@ cua = [
     { name = "cua-s1" },
     { name = "huggingface-hub" },
 ]
+cua-four-b = [
+    { name = "cua-s1" },
+    { name = "huggingface-hub" },
+    { name = "peft" },
+    { name = "pillow" },
+    { name = "torchvision" },
+    { name = "transformers" },
+]
 dev = [
     { name = "jsonschema" },
     { name = "pytest" },
@@ -5285,11 +5293,13 @@ requires-dist = [
     { name = "huggingface-hub", marker = "extra == 'cua'", specifier = ">=0.24" },
     { name = "huggingface-hub", marker = "extra == 'omnijev'", specifier = ">=0.24" },
     { name = "jsonschema", marker = "extra == 'dev'", specifier = ">=4.18" },
-    { name = "laya", marker = "extra == 'laya'", specifier = ">=0.3.4" },
+    { name = "laya", marker = "extra == 'laya'", specifier = ">=0.3.9" },
     { name = "mcp", specifier = ">=1.26" },
     { name = "opencv-python-headless", marker = "extra == 'alfworld-visual'", specifier = ">=4.10" },
     { name = "openjiuwen", git = "https://github.com/ThinkFlowLab/agent-core?rev=jj-0.1.0" },
+    { name = "peft", marker = "extra == 'cua-four-b'", specifier = ">=0.21,<1" },
     { name = "peft", marker = "extra == 'omnijev'", specifier = ">=0.15" },
+    { name = "pillow", marker = "extra == 'cua-four-b'", specifier = ">=10" },
     { name = "pillow", marker = "extra == 'omnijev'" },
     { name = "pillow", marker = "extra == 'report'", specifier = ">=10" },
     { name = "playwright", marker = "extra == 'report'", specifier = ">=1.45" },
@@ -5302,16 +5312,19 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
     { name = "safetensors", marker = "extra == 'omnijev'" },
     { name = "system1-agents", extras = ["alfworld"], marker = "extra == 'alfworld-visual'" },
+    { name = "system1-agents", extras = ["cua"], marker = "extra == 'cua-four-b'" },
     { name = "textworld", marker = "extra == 'alfworld'", specifier = ">=1.7" },
     { name = "torch", marker = "extra == 'alfworld-visual'", specifier = ">=2" },
     { name = "torch", marker = "extra == 'omnijev'", specifier = ">=2.4" },
     { name = "torchvision", marker = "extra == 'alfworld-visual'", specifier = ">=0.15" },
+    { name = "torchvision", marker = "extra == 'cua-four-b'", specifier = ">=0.15" },
     { name = "torchvision", marker = "extra == 'omnijev'", specifier = ">=0.15" },
+    { name = "transformers", marker = "extra == 'cua-four-b'", specifier = ">=5.10.1,<6" },
     { name = "transformers", marker = "extra == 'omnijev'", specifier = ">=5.0" },
     { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.83" },
     { name = "werkzeug", marker = "extra == 'alfworld-visual'", specifier = "==2.0.3" },
 ]
-provides-extras = ["blackjack", "alfworld", "alfworld-visual", "report", "laya", "cua", "omnijev", "dev"]
+provides-extras = ["blackjack", "alfworld", "alfworld-visual", "report", "laya", "cua", "omnijev", "cua-four-b", "dev"]
 
 [[package]]
 name = "tatsu"
