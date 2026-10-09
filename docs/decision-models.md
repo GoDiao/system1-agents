@@ -14,6 +14,8 @@ TypeSafe "System One model". This repository uses the terms interchangeably. `--
 `random` and `rule` (the tool front's baselines).
 `build_model(model_name, seed=, rule=)` builds one from the environment; `llm` names the chat model, which `build_model` does not build.
 
+The [decision-model capability matrix](capabilities.md) summarizes registered paths, input modalities, question types, and the separate run evidence and hardware validation status.
+
 ## The interface
 
 Input: an `Observation(state, images=())` (a JSON object or plain text) and typed questions by name:
