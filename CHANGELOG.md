@@ -48,6 +48,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
   run steps: `docs/served-laya.md`, `docs/api/`.
 - Tool-front ticks keep the answering model as `model`, and a served model's `served_by`, `url`, `request_id` and
   `server_timing`.
+- `--model omnijev` on the browser agents: [OmniJev](https://github.com/tinnel123666888/OmniJev) (Apache-2.0), a
+  Qwen3.5 vision-language decision model, in process behind `uv sync --extra omnijev` and a local clone named by
+  `OMNIJEV_REPO`. It decides over a screenshot; `docs/decision-models.md`, `docs/configuration.md`.
+- Browser front: a decision model that reads images (`supports_images`) gets a viewport PNG with every tick's
+  observation, captured through the probe's run-code executor (a failed capture is tried once more; with no image
+  OmniJev fails the call as `MODEL_CALL_FAILED`); the tick records its `screenshot_ms`. Jev, Laya and
+  Cua-S1 read text only and see no change.
 - `S1A_DECISION_TIMEOUT_S`: the deadline of one decision on the `jev` backend, 5 s when unset. A local System One
   server behind `TYPESAFE_API_URL` can be slower than Jev: on Google Flights, OneJev-27B on an A100 takes about 3.7 s
   a decision and more on the calendar page, so the 5 s deadline stopped every run at the eighth step; with 30 s it
