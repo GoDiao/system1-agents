@@ -1,0 +1,89 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"  # weekly: uv.lock pins neither the runner image nor the npx-fetched @playwright/mcp
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  core:
+    # The install the README promises: openjiuwen alone, no game or report extras, no keys.
+    # Keep these names in sync with main's required status checks.
+    name: ${{ matrix.check_name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: "3.11"
+            check_name: core (3.11)
+          - os: ubuntu-latest
+            python: "3.13"
+            check_name: core (3.13)
+          - os: windows-latest
+            python: "3.11"
+            check_name: core (windows, 3.11)
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - run: uv lock --check
+      - run: uv sync --extra dev
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run ty check
+      - run: uv build
+      - run: scripts/smoke.sh
+        shell: bash
+      - run: uv run pytest -q
+
+  full:
+    # The contributor install from CONTRIBUTING.md; the ALFWorld tests skip.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --extra dev --extra blackjack --extra report
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+      # tests/test_replay.py skips its GIF test when Playwright's Chromium is missing.
+      - run: uv run playwright install --with-deps chromium
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: scripts/smoke.sh
+      - run: uv run pytest -q -rs
+
+  browser:
+    # tests/system: the policy probe JS in a headless Chromium through @playwright/mcp. Needs Node and runs without a key.
+    # Runs on main and the weekly cron until it has a track record. Drop the `if` to gate pull requests too.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --extra dev
+      # The Chromium revision that playwright-core inside the runtime's pinned @playwright/mcp expects.
+      - run: npx -y -p "$(uv run --no-sync python -c 'import s1a.entry; from s1a.config import DEFAULT_PLAYWRIGHT_MCP_ARGS as a; print(a.split()[-1])')" playwright-core install --with-deps chromium
+      - run: S1A_BROWSER_TESTS=1 uv run pytest -q tests/system
