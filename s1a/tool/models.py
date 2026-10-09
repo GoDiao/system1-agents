@@ -18,7 +18,7 @@ from openjiuwen.core.common.exception.errors import BaseError
 from openjiuwen.core.foundation.llm import AssistantMessage, AssistantMessageChunk, Model, ToolCall, init_model
 
 from s1a.decision_models import DecisionModel, ChoiceQuestion, Observation
-from s1a.env import Env
+from s1a.env import Env, VisualEnv
 from s1a.recovery import recovery_next_action
 
 ACT_TOOL = "act"
@@ -124,8 +124,7 @@ class ToolDecisionModel(Model):
         env, state = self._env, self._state
         if env.done:
             return self._stop("DONE", "environment done")
-        # Preserve the legacy game status. A bounded episode that has not finished reports BLOCKED;
-        # a recovery failure takes precedence so its more specific reason survives the act limit.
+        # Legacy games keep DONE at their act limit; bounded recovery keeps its failure reason.
         if state.budget_spent and not (state.bounded_recovery and (state.give_up or state.error is not None)):
             return self._stop("BLOCKED" if state.bounded_recovery else "DONE", "act budget spent")
         if state.give_up:
@@ -143,9 +142,10 @@ class ToolDecisionModel(Model):
         if state.notices:
             request_state["harness_notices"] = list(state.notices)
         started = time.perf_counter()
+        images = await env.images() if isinstance(env, VisualEnv) else ()
         try:
             decision = await self._decision_model.decide_many(
-                Observation(request_state), {"pick": ChoiceQuestion(offered, rules=self._rules)}
+                Observation(request_state, images), {"pick": ChoiceQuestion(offered, rules=self._rules)}
             )
         except BaseError as exc:  # any decisions failure ends the episode as BLOCKED, recorded
             state.error = f"decision failed: {exc}"
@@ -187,9 +187,7 @@ class ToolDecisionModel(Model):
             "score": self._env.score,
             "steps": len(state.acts),
         }
-        # A bounded recovery that ended the episode gives the same record as the browser front: the specific reason
-        # and one actionable next step, never a wider tool set or an automatic retry. The legacy game branch is
-        # untouched: it has no bounded recovery, so nothing is added.
+        # Bounded stops include failure guidance; legacy game output stays unchanged.
         if state.bounded_recovery and status == "BLOCKED":
             event = next((e for e in reversed(state.rethinks) if e.get("next_action")), None)
             if event is not None:
@@ -203,10 +201,8 @@ class ToolDecisionModel(Model):
                     "next_action": next_action,
                 }
             else:
-                # Every bounded BLOCKED gets an operator-facing reason and next step. When the act budget ends the
-                # episode right after a plan (no failed recovery event carries one), synthesise it from the shared
-                # helper and name the cap as the reason: never dress an act cap up as a recovery timeout. The reason
-                # is passed as ``error`` too, so a permission-denied action routes through the permission flow.
+                # An act cap can follow a valid plan, so it needs its own stop guidance.
+                # Pass the reason through the shared permission guidance too.
                 last = next((e for e in reversed(state.rethinks) if e.get("attempt") is not None), None)
                 next_action = recovery_next_action(termination=reason, error=reason)
                 recovery = {
@@ -219,7 +215,6 @@ class ToolDecisionModel(Model):
                 }
             summary["next_action"] = next_action
             summary["recovery"] = recovery
-        # The structured stop summary is kept whole on the state, so a consumer need not parse the (possibly
-        # truncated) text output to recover the reason and the actionable next step.
+        # Keep the full terminal record separately from shortened display output.
         state.terminal = summary
         return AssistantMessage(content=json.dumps(summary, ensure_ascii=False), finish_reason="stop")

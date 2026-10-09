@@ -7,6 +7,7 @@ import asyncio
 import gc
 import warnings
 from unittest import IsolatedAsyncioTestCase, TestCase
+from unittest.mock import patch
 
 from s1a.recovery import RecoveryBudget, RecoveryExhausted, RecoveryLimits, recovery_next_action
 
@@ -99,8 +100,10 @@ class TestRecoveryBudget(IsolatedAsyncioTestCase):
 
     async def test_a_rejected_call_closes_its_awaitable_without_running_it_or_warning(self) -> None:
         budget = RecoveryBudget(RecoveryLimits(max_attempts=1, timeout_s=0.05))
-        with self.assertRaises(asyncio.TimeoutError):
-            await budget.call(asyncio.sleep(1.0))  # spend the only active second
+        # Exhaust the budget deterministically before checking rejection.
+        with patch("s1a.recovery.time.perf_counter", side_effect=[0.0, 0.05]):
+            with self.assertRaises(asyncio.TimeoutError):
+                await budget.call(asyncio.sleep(1.0))
         self.assertLessEqual(budget.remaining_s, 0.0)
         ran = False
 

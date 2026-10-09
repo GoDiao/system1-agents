@@ -28,7 +28,7 @@ from s1a.spec import ToolAgentSpec
 from s1a.tool.rethink import RethinkRail
 from s1a.tool.models import ACT_TOOL, OBSERVE_TOOL, EvalState, ToolDecisionModel
 
-MODEL_NAMES = ("jev", "llm", "random", "rule", "laya", "laya-served", "cua")
+MODEL_NAMES = ("jev", "clm", "llm", "random", "rule", "laya", "laya-served", "cua")
 EVAL_PROMPT = (
     "You play a game through two tools. Call observe first. Then call act with exactly one of the candidate keys the "
     "last tool result offered, one act per turn, until done is true. Then reply with one line: the final score."
@@ -144,7 +144,7 @@ def build_slot_model(
             if chat is None:
                 raise RuntimeError("--model llm needs the chat model: OPENAI_API_KEY or LLM_API_KEY, and MODEL_NAME")
             return chat
-        case "jev" | "laya" | "laya-served" | "cua" | "random" | "rule":
+        case "jev" | "clm" | "laya" | "laya-served" | "cua" | "random" | "rule":
             if decision_model is None:
                 raise RuntimeError(f"--model {model_name} needs a decision model")
             return ToolDecisionModel(env, state, rules=rules, decision_model=decision_model, fallback=chat)
@@ -301,10 +301,9 @@ async def run_episode(
     chat_input_tokens = sum(call["input_tokens"] for call in state.chat)
     chat_output_tokens = sum(call["output_tokens"] for call in state.chat)
     chat_cache_tokens = sum(call["cache_tokens"] for call in state.chat)
-    # A decision reply without usable usage leaves its tokens unknown too, not a confirmed zero.
+    # Missing usage cannot be priced as zero.
     complete_usage = usage_known(state.chat) and all(tick.get("usage_known", True) for tick in state.ticks)
-    # A failed or cancelled planner call leaves its tokens unknown: the episode's cost is unknown, not zero, and
-    # price_episodes must not overwrite that None with a partial number.
+    # Failed or cancelled calls leave the total cost unknown.
     episode_cost = (
         None
         if not complete_usage

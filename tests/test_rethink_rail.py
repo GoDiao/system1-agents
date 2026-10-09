@@ -586,12 +586,27 @@ class TestBoundedRethink(IsolatedAsyncioTestCase):
 
     async def test_an_external_cancel_during_the_planner_keeps_the_fresh_observation(self) -> None:
         state, refresh = EvalState(), FakeRefresh()
+        entered = asyncio.Event()
+
+        class WaitingPlanner:
+            async def invoke(self, messages: Any, **kwargs: Any) -> AssistantMessage:
+                entered.set()
+                return await asyncio.Future[AssistantMessage]()
+
         guard = bounded_rail(
-            state, refresh, planner=SlowPlanner(), limits=RecoveryLimits(max_attempts=3, timeout_s=5.0)
+            state, refresh, planner=WaitingPlanner(), limits=RecoveryLimits(max_attempts=3, timeout_s=30.0)
         )
         await guard.after_tool_call(act("LEFT", 0))
-        with self.assertRaises(asyncio.TimeoutError):
-            await asyncio.wait_for(guard.after_tool_call(act("RIGHT", 0)), timeout=0.02)
+        task = asyncio.create_task(guard.after_tool_call(act("RIGHT", 0)))
+        try:
+            # Entry, rather than a short sleep, determines where cancellation lands.
+            await asyncio.wait_for(entered.wait(), timeout=5.0)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
         event = state.rethinks[-1]
         self.assertEqual((event["termination"], event["phase"]), ("cancelled", "planner"))
         self.assertIsInstance(event["fresh_obs"], dict)
