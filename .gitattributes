@@ -1,3 +1,0 @@
-# Bash scripts and Git hooks must keep their shebangs usable with core.autocrlf.
-*.sh text eol=lf
-.githooks/* text eol=lf
