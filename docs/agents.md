@@ -18,9 +18,9 @@ hook of a running agent. The injection guard rail fails closed: a decision error
 
 Every tool agent takes `--model jev|clm|laya|laya-served|cua|llm|random|rule`, `--rethink on|off`, `--episodes N`, `--seed S`,
 `--max-steps` and `--timeout`, and writes a Harbor-shaped job folder under `evals/results/<agent>/`. A browser agent
-takes `--model jev|clm|laya|laya-served|cua|llm`, `--goal` and the same `--rethink` flag. The desktop agent adds the bounded-recovery
-`--rethink-attempts` and `--rethink-timeout` and stalls after 3 actions without observed progress. The browser front
-takes the same three names; `docs/browser-front.md` decision 19 describes its branch. A rail takes
+takes `--model jev|clm|laya|laya-served|cua|omnijev|llm`, `--goal` and the same `--rethink` flag.
+The desktop agent adds `--rethink-attempts` and `--rethink-timeout` and stalls after 3 actions without observed
+progress. The browser front takes the same three names; `docs/browser-front.md` decision 19 describes its branch. A rail takes
 `--model jev|clm|laya|laya-served`, the models that answer `noul`.
 `uv run python -m evals.table evals/results` aggregates every job folder per eval and model into one table.
 
@@ -30,6 +30,8 @@ with `list_agents`, `run_agent` and `decide`. Flags, exit codes and the job-fold
 models behind them: [architecture.md](architecture.md#models).
 
 Desktop recovery treats a changed progress observation as progress even when the completion score stays zero.
+When screenshots are enabled, progress includes the decoded image dimensions and an RGBA pixel hash; capture IDs
+and PNG metadata do not affect it. The hash is cached per snapshot, and image bytes stay outside the JSON state.
 Persistent no-ops and repeated states can trigger recovery; progress clears the detection window without refunding
 attempts or time. The full terminal fields, including `next_action`, are saved separately in `episode.extra.terminal`.
 

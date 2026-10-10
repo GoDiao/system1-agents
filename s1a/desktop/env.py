@@ -3,11 +3,15 @@
 
 from __future__ import annotations
 
+import hashlib
+import io
 from collections import Counter
 from typing import Any, Callable
 
+from PIL import Image as PILImage
+
 from s1a.decision_models.types import Image
-from s1a.desktop.driver import Driver, DriverError, Element, Snapshot, Window
+from s1a.desktop.driver import Capture, Driver, DriverError, Element, Snapshot, Window
 
 DONE = "done"
 ABSTAIN = "abstain"
@@ -42,6 +46,13 @@ def observable(element: Element) -> bool:
     """Keep the named controls and visible values; omit macOS menu trees from the decision state."""
     role = element.role.casefold().removeprefix("ax")
     return role not in _MENU_ROLES and bool(element.label.strip() or element.value.strip())
+
+
+def visual_progress(capture: Capture) -> dict[str, Any]:
+    """Hash decoded pixels so capture IDs and PNG metadata cannot count as progress."""
+    with PILImage.open(io.BytesIO(capture.image.data)) as picture:
+        rgba = picture.convert("RGBA")
+        return {"width": rgba.width, "height": rgba.height, "sha256": hashlib.sha256(rgba.tobytes()).hexdigest()}
 
 
 class WindowEnv:
@@ -86,6 +97,7 @@ class WindowEnv:
         self._screenshot = screenshot or bool(self._pixel_targets)
         self._window: Window | None = None
         self._snapshot: Snapshot | None = None
+        self._visual: dict[str, Any] | None = None
         self._keys: dict[str, Element] = {}
         self._text_keys: dict[str, Element] = {}
         self._presses: list[str] = []
@@ -131,6 +143,11 @@ class WindowEnv:
         )
         if self._screenshot and self._snapshot.capture is None:
             raise DriverError("visual observations require a valid screenshot capture")
+        self._visual = None
+        if self._screenshot:
+            capture = self._snapshot.capture
+            assert capture is not None
+            self._visual = visual_progress(capture)  # once per refreshed snapshot, not per observation read
         self._update_candidates()
 
     def _update_candidates(self) -> None:
@@ -170,6 +187,10 @@ class WindowEnv:
             }
             for e in visible
         ]
+        # progress is the window itself, not the click count: a click that changes nothing must look stuck
+        progress: dict[str, Any] = {"title": snapshot.window.title, "elements": elements, "values": values}
+        if self._visual is not None:
+            progress["image"] = self._visual
         state: dict[str, Any] = {
             "goal": self._goal,
             "app": self._app_name,
@@ -177,8 +198,7 @@ class WindowEnv:
             "elements": elements,
             "presses": list(self._presses),
             "text_pending": bool(self._text and not self._typed),
-            # progress is the window itself, not the click count: a click that changes nothing must look stuck
-            "progress": {"title": snapshot.window.title, "elements": elements, "values": values},
+            "progress": progress,
         }
         if self._planned is not None:
             state["planned"] = self._planned
