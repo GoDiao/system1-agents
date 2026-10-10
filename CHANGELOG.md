@@ -29,6 +29,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 - Browser front: a WAIT whose in-page settle moved the page now records `page_changed: true` in the history, so
   the next state no longer shows that wait as unmeasured.
 
+### Changed
+
+- Core Windows CI (`core (windows, 3.11)`) runs on pushes to `main` and the weekly schedule, not on every
+  pull request. Linux `core` and `full` still run on PRs.
+
 ### Added
 
 - `--model clm`: CLM's `clm-serve` behind the decision-model interface, over its `/v1/systemone`. The engine owns
